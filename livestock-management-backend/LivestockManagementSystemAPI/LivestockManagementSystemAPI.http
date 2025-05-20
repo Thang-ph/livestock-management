@@ -1,0 +1,6 @@
+@LivestockManagementSystemAPI_HostAddress = http://localhost:5185
+
+GET {{LivestockManagementSystemAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
