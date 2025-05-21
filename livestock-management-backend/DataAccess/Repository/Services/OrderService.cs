@@ -1,7 +1,11 @@
 ﻿using AutoMapper;
 using BusinessObjects;
+using BusinessObjects.ConfigModels;
 using BusinessObjects.Dtos;
+using BusinessObjects.Models;
 using DataAccess.Repository.Interfaces;
+using DocumentFormat.OpenXml.Office2016.Drawing.ChartDrawing;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -10,87 +14,940 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static BusinessObjects.Constants.LmsConstants;
 
 namespace DataAccess.Repository.Services
 {
-    public class OrderService : IOderRepository
+    public class OrderService : IOrderRepository
     {
         private readonly LmsContext _context;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IMapper _mapper;
 
-        public OrderService(LmsContext context, IMapper mapper,UserManager<IdentityUser> userManager)
+        public OrderService(LmsContext context, IMapper mapper, UserManager<IdentityUser> userManager)
         {
             _userManager = userManager;
             _mapper = mapper;
             _context = context;
         }
 
-        public async Task<ListOrders> GetListOrder(ListOrderFilter filter)
+        public async Task<LivestockBatchImportInfo> AddLivestockToOrder(string orderId, AddLivestockToOrderDTO model)
         {
-            var result = new ListOrders
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán");
+
+            if (order.Status == order_status.HOÀN_THÀNH || order.Status == order_status.ĐÃ_HỦY)
+                throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể chọn ");
+
+            var livestock = await _context.Livestocks
+                .Include(s => s.Species)
+                .FirstOrDefaultAsync(x => x.Id == model.LivestockId);
+            if (livestock == null)
+                throw new Exception("Không tìm thấy thông tin vật nuôi");
+
+            //Check Livestock in our barn or not
+            var checkLivestockHasImported = await _context.BatchImportDetails
+                .FirstOrDefaultAsync(x => x.LivestockId == model.LivestockId
+                && x.ImportedDate != null);
+            if (checkLivestockHasImported == null)
+                throw new Exception("Loài vật chưa được nhập về trại không thể thêm");
+
+            //Check duplicated livestock
+            var oderDetailsCheck = await _context.OrderDetails
+                .FirstOrDefaultAsync(x => x.LivestockId == model.LivestockId
+                && x.OrderId == orderId);
+            if (oderDetailsCheck != null)
+                throw new Exception("Loài vật đã tồn tại trong đơn bán này");
+
+            //Check livestock is dead
+            if (livestock.Status == livestock_status.CHẾT)
+                throw new Exception("Loài vật đã chết không thể chọn");
+
+            //Check livestock in other procurement
+            var checkBatchExportDetails = await _context.BatchExportDetails
+                .Include(b => b.BatchExport)
+                    .ThenInclude(p => p.ProcurementPackage)
+                .FirstOrDefaultAsync(x => x.LivestockId == model.LivestockId
+                && x.ExportDate != null
+                && x.BatchExport.ProcurementPackage.Status != procurement_status.ĐÃ_HỦY);
+            if (checkBatchExportDetails != null)
+                throw new Exception("Loài vật đã tồn tại trong gói thầu khác");
+
+            //Check livestock in other order
+            var checkOrder = await _context.OrderDetails
+                .Include(o => o.Order)
+                .FirstOrDefaultAsync(x => x.LivestockId == model.LivestockId
+                && x.OrderId != orderId
+                && x.ExportedDate != null
+                && x.Order.Status != order_status.ĐÃ_HỦY);
+            if (checkOrder != null)
+                throw new Exception("Loài vật đã tồn tại trong đơn khác");
+
+            // Lấy danh sách yêu cầu của đơn hàng
+            var requirements = await _context.OrderRequirements
+                .Where(r => r.OrderId == orderId)
+                .ToListAsync();
+
+            OrderRequirement matchedReq = null;
+
+            foreach (var req in requirements)
             {
-                Total = 0,
+                // So khớp SpecieId
+                if (livestock.Species.Id != req.SpecieId) continue;
+
+                // Kiểm tra WeightFrom/WeightTo nếu có
+                if (req.WeightFrom.HasValue && livestock.WeightOrigin < req.WeightFrom) continue;
+                if (req.WeightTo.HasValue && livestock.WeightOrigin > req.WeightTo) continue;
+
+                // Đếm số con đã chọn cho yêu cầu này
+                var countSelected = await _context.OrderDetails
+                    .CountAsync(d =>
+                        d.OrderId == orderId
+                        && d.Livestock.Species.Id == req.SpecieId
+                        && (!req.WeightFrom.HasValue || d.Livestock.WeightOrigin >= req.WeightFrom)
+                        && (!req.WeightTo.HasValue || d.Livestock.WeightOrigin <= req.WeightTo)
+                    );
+
+                if (countSelected >= req.Quantity) continue;
+
+                matchedReq = req;
+                break;
+            }
+
+            if (matchedReq == null)
+                throw new Exception("Không có yêu cầu nào phù hợp hoặc đã đủ số lượng");
+
+            var checkOrderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId)
+                .ToArrayAsync();
+            if (!checkOrderDetails.Any())
+            {
+                order.Status = order_status.ĐANG_CHUẨN_BỊ;
+                order.StartPrepareAt = DateTime.Now;
+                order.UpdatedAt = DateTime.Now;
+                order.UpdatedBy = model.RequestedBy ?? "SYS";
+            }
+
+            var orderDetails = new OrderDetail();
+
+            orderDetails.Id = SlugId.New();
+
+            orderDetails.OrderId = orderId;
+            orderDetails.LivestockId = model.LivestockId;
+            orderDetails.ExportedDate = null;
+
+            orderDetails.CreatedAt = DateTime.Now;
+            orderDetails.UpdatedAt = DateTime.Now;
+            orderDetails.UpdatedBy = model.RequestedBy ?? "SYS";
+            orderDetails.CreatedBy = model.RequestedBy ?? "SYS";
+
+            await _context.OrderDetails.AddAsync(orderDetails);
+
+            var livestockQuantity = await _context.OrderRequirements
+            .Where(o => o.OrderId == orderId)
+            .SumAsync(x => (int?)x.Quantity);
+
+            var livestockInOrder = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId
+                && x.ExportedDate == null)
+                .CountAsync();
+            if (livestockInOrder + 1 == livestockQuantity)
+            {
+                order.Status = order_status.CHỜ_BÀN_GIAO;
+                order.AwaitDeliverAt = DateTime.Now;
+                order.Type = order_type.YÊU_CẦU_XUẤT;
+                order.UpdatedAt = DateTime.Now;
+                order.UpdatedBy = model.RequestedBy ?? "SYS";
+            }
+
+            await _context.SaveChangesAsync();
+
+            return new LivestockBatchImportInfo 
+            {
+                Id = model.LivestockId,
+                InspectionCode = livestock.InspectionCode,
+                SpecieType = livestock.Species.Type,
+                SpecieName = livestock.Species.Name,
+                LiveStockStatus = livestock.Status,
+                Gender = livestock.Gender,
+                Color = livestock.Color,
+                Weight = livestock.WeightOrigin,
+                Dob = livestock.Dob
+            };
+        }
+
+        public async Task<bool> CancelOrder(string orderId, string? requestedBy)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán");
+
+            if (order.Status == order_status.HOÀN_THÀNH || order.Status == order_status.ĐANG_BÀN_GIAO)
+                throw new Exception("Không được hủy, đơn đang trong quá trình bàn giao hoặc đã hoàn thành");
+
+            order.Status = order_status.ĐÃ_HỦY;
+            order.CancelledAt = DateTime.Now;
+            order.UpdatedAt = DateTime.Now;
+            order.Type = order_type.KHÔNG_YÊU_CẦU;
+            order.CancelledAt = DateTime.Now;
+            order.UpdatedBy = requestedBy ?? "SYS";
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<bool> CompletelOrder(string orderId, string? requestedBy)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán");
+
+            if (order.Status == order_status.ĐÃ_HỦY)
+                throw new Exception("Không được hoàn thành, đơn đã bị hủy");
+
+            var livestockQuantity = await _context.OrderRequirements
+                .Where(o => o.OrderId == orderId)
+                .SumAsync(x => (int?)x.Quantity);
+            var listOrderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId)
+                .CountAsync();
+            if (livestockQuantity > listOrderDetails)
+                throw new Exception("Chưa đủ số lượng vật nuôi, không thể hoàn thành");
+
+            var livestockInOrder = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId
+                && x.ExportedDate == null)
+                .ToArrayAsync();
+            foreach (var item in livestockInOrder)
+            {
+                item.ExportedDate = DateTime.Now;
+                item.UpdatedAt = DateTime.Now;
+                item.UpdatedBy = requestedBy ?? "SYS";
+            }
+
+            order.Status = order_status.HOÀN_THÀNH;
+            order.CompletedAt = DateTime.Now;
+            order.Type = order_type.KHÔNG_YÊU_CẦU;
+            order.UpdatedAt = DateTime.Now;
+            order.UpdatedBy = requestedBy ?? "SYS";
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<bool> ConfirmExport(string orderId, string? requestedBy)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán");
+
+            if (order.Status == order_status.HOÀN_THÀNH || order.Status == order_status.ĐÃ_HỦY)
+                throw new Exception("Đơn đã hoàn thành hoặc đã hủy, không còn xác nhận xuất");
+
+            //Check Order Havent Choose
+            var checkDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId)
+                .ToArrayAsync();
+            if (!checkDetails.Any())
+                throw new Exception("Đơn bán chưa có vật nuôi không thể xác nhận");
+
+            //Check Order have at least 1 Exportable Livestock
+            var orderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId
+                && x.ExportedDate == null)
+                .ToArrayAsync();
+            if (orderDetails == null)
+                throw new Exception("Chưa có loài vật nào trong danh sách để xuất bán");
+
+            //Update ExportedDate for each Livestock
+            foreach (var item in orderDetails)
+            {
+                item.ExportedDate = DateTime.Now;
+                item.UpdatedAt = DateTime.Now;
+                item.UpdatedBy = requestedBy ?? "SYS";
+            }
+
+            //Update Order Status
+            order.Status = order_status.ĐANG_BÀN_GIAO;
+            order.StartDeliverAt = DateTime.Now;
+            order.UpdatedAt = DateTime.Now;
+            order.UpdatedBy = requestedBy ?? "SYS";
+
+            //Check Total Exported 
+            var livestockQuantity = await _context.OrderRequirements
+               .Where(o => o.OrderId == orderId)
+               .SumAsync(x => (int?)x.Quantity);
+            var listOrderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId
+                && x.ExportedDate != null)
+                .CountAsync();
+            if(listOrderDetails + 1 == livestockQuantity)
+            {
+                order.Status = order_status.HOÀN_THÀNH;
+                order.CompletedAt = DateTime.Now;
+                order.Type = order_type.KHÔNG_YÊU_CẦU;
+                order.UpdatedAt = DateTime.Now;
+                order.UpdatedBy = requestedBy ?? "SYS";
+            }
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<Stream> GetReportedFile(string orderId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public async Task<Stream> GetTemplateListLivestock(string orderId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public async Task ImportExcelfile(string orderId, string requestedBy, IFormFile file)
+        {
+            throw new NotImplementedException();
+        }
+        public async Task<bool> RemoveRequestChoose(string orderId)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán lẻ");
+
+            order.Type = order_type.KHÔNG_YÊU_CẦU;
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+        public async Task<bool> RequestChoose(string orderId)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán lẻ");
+
+            if (order.Status == order_status.ĐÃ_HỦY || order.Status == order_status.HOÀN_THÀNH)
+                throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể chọn loài vật");
+
+            var livestockQuantity = await _context.OrderRequirements
+              .Where(o => o.OrderId == orderId)
+              .SumAsync(x => (int?)x.Quantity);
+            var listOrderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId)
+                .CountAsync();
+            if (livestockQuantity == listOrderDetails)
+                throw new Exception("Đơn đã chọn đủ theo yêu cầu");
+
+            order.Type = order_type.YÊU_CẦU_CHỌN;
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<bool> RequestExport(string orderId)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán lẻ");
+
+            if (order.Status == order_status.ĐÃ_HỦY || order.Status == order_status.HOÀN_THÀNH)
+                throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể xuất bán");
+
+            var orderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId)
+                .ToArrayAsync();
+            if (!orderDetails.Any())
+                throw new Exception("Đơn lẻ chưa có danh sách vật nuôi, không thể đề xuất xuất bán");
+
+            var livestockQuantity = await _context.OrderRequirements
+               .Where(o => o.OrderId == orderId)
+               .SumAsync(x => (int?)x.Quantity);
+            var listOrderDetails = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId
+                && x.ExportedDate != null)
+                .CountAsync();
+            if (livestockQuantity == listOrderDetails)
+                throw new Exception("Đơn đã xuất đủ theo yêu cầu");
+
+            order.Type = order_type.YÊU_CẦU_XUẤT;
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<bool> DeleteLivestockFromOrder(string orderDetailsId)
+        {
+            var orderDetails = await _context.OrderDetails
+                .FirstOrDefaultAsync(x => x.Id == orderDetailsId);
+            if (orderDetails == null)
+                throw new Exception("Không tìm thấy thông tin vật nuôi");
+
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderDetails.OrderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán");
+
+            if (order.Status == order_status.ĐÃ_HỦY || order.Status == order_status.HOÀN_THÀNH)
+                throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể xóa");
+
+            if (order.Status == order_status.ĐANG_BÀN_GIAO && orderDetails.ExportedDate != null)
+                throw new Exception("Không thể xóa loài vật đã được xuất");
+
+            _context.OrderDetails.Remove(orderDetails);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<ListOrderLivestocks> GetListLivestockInOrder(string orderId, ListLivestockFilter filter)
+        {
+            var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
+            if (order == null)
+                throw new Exception("Không tìm thấy đơn bán");
+            
+            var orderDetails = await _context.OrderDetails
+                .Include(l => l.Livestock)
+                    .ThenInclude(s => s.Species)
+                .Where(x => x.OrderId == orderId)
+                .ToArrayAsync();
+
+            var result = new ListOrderLivestocks
+            {
+                Total = 0
             };
 
-            var order = await _context.Orders
-                .Include(c => c.Customer)
-                .ToArrayAsync();
-            if(order == null || !order.Any())
-                return result;
-
-            if (filter != null)
+            if(filter != null)
             {
                 if (!string.IsNullOrEmpty(filter.Keyword))
                 {
-                    order = order
-                        .Where(v => v.Customer.Fullname.ToUpper().Contains(filter.Keyword.Trim().ToUpper()))
-                        .ToArray();
-                }
-                if (filter.FromDate != null && filter.FromDate != DateTime.MinValue)
-                {
-                    order = order
-                        .Where(v => v.CreatedAt >= filter.FromDate)
-                        .ToArray();
-                }
-                if (filter.ToDate != null && filter.ToDate != DateTime.MinValue)
-                {
-                    order = order
-                       .Where(v => v.CreatedAt <= filter.ToDate)
-                       .ToArray();
-                }
-                if (filter.Status != null)
-                {
-                    order = order
-                        .Where(v => v.Status == filter.Status)
+                    orderDetails = orderDetails
+                        .Where(v => v.Livestock.InspectionCode.ToUpper().Contains(filter.Keyword.Trim().ToUpper()))
                         .ToArray();
                 }
             }
-            if (!order.Any()) return result;
-            order = order
+            if (!orderDetails.Any())
+                return result;
+
+            orderDetails = orderDetails
                 .OrderByDescending(v => v.CreatedAt)
                 .ToArray();
 
-            result.Items = order
-                .Select(v => new OrderSummary
+            result.Items = orderDetails
+                .Select(v => new OrderLivestockInfo
                 {
                     Id = v.Id,
-                    CustomerName = v.Customer.Fullname,
-                    PhoneNumber = v.Customer.Phone,
-                    Total = 1,
-                    Received = 1,
-                    Status = v.Status,
-                    CreatedAt = v.CreatedAt
+                    LivestockId = v.LivestockId,
+                    InspectionCode = v.Livestock.InspectionCode,
+                    SpecieId = v.Livestock.Species.Id,
+                    SpecieName = v.Livestock.Species.Name,
+                    Weight = v.Livestock.WeightOrigin,
+                    Status = v.Livestock.Status,
+                    CreatedAt = v.CreatedAt,
+                    ExportedDate = v.ExportedDate
                 })
                 .OrderByDescending(v => v.CreatedAt)
                 .Skip(filter?.Skip ?? 0)
                 .Take(filter?.Take ?? 10)
                 .ToArray();
-            result.Total = order.Length;
+            result.Total = orderDetails.Length;
+            return result;
+        }
+        public async Task<ListOrders> GetListOrderToChoose()
+        {
+            var data = await _context.Orders
+                .Include(c => c.Customer)
+                .Where(x => x.Type == order_type.YÊU_CẦU_CHỌN)
+                .ToArrayAsync();
 
+            var result = new ListOrders()
+            {
+                Total = 0
+            };
+
+            if (!data.Any())
+                return result;
+
+            data = data
+                .OrderByDescending(v => v.CreatedAt)
+                .ToArray();
+
+            result.Items = data
+                .Select(v => new OrderSummary
+                {
+                    Id = v.Id,
+                    Code = v.Code,
+                    CustomerName = v.Customer.Fullname,
+                    PhoneNumber = v.Customer.Phone,
+                    Total = _context.OrderRequirements
+                        .Where(o => o.OrderId == v.Id)
+                        .Sum(x => (int?)x.Quantity) ?? 0,
+
+                    Received = _context.OrderDetails
+                        .Where(x => x.OrderId == v.Id
+                        && x.ExportedDate != null).Count(),
+                    Type = v.Type,
+                    Status = v.Status,
+                    CreatedAt = v.CreatedAt
+                })
+                .OrderByDescending(v => v.CreatedAt)
+                .ToArray();
+            result.Total = data.Length;
+            return result;
+        }
+        public async Task<ListOrders> GetListOrderToExport()
+        {
+            var data = await _context.Orders
+                 .Include(c => c.Customer)
+                 .Where(x => x.Type == order_type.YÊU_CẦU_XUẤT)
+                 .ToArrayAsync();
+
+            var result = new ListOrders()
+            {
+                Total = 0
+            };
+
+            if (!data.Any())
+                return result;
+
+            data = data
+                .OrderByDescending(v => v.CreatedAt)
+                .ToArray();
+
+            result.Items = data
+                .Select(v => new OrderSummary
+                {
+                    Id = v.Id,
+                    Code = v.Code,
+                    CustomerName = v.Customer.Fullname,
+                    PhoneNumber = v.Customer.Phone,
+                    Total = _context.OrderRequirements
+                        .Where(o => o.OrderId == v.Id)
+                        .Sum(x => (int?)x.Quantity) ?? 0,
+
+                    Received = _context.OrderDetails
+                        .Where(x => x.OrderId == v.Id
+                        && x.ExportedDate != null).Count(),
+                    Type = v.Type,
+                    Status = v.Status,
+                    CreatedAt = v.CreatedAt
+                })
+                .OrderByDescending(v => v.CreatedAt)
+                .ToArray();
+            result.Total = data.Length;
             return result;
         }
 
+        public async Task<OrderDetailsDTO> CreateOrder(CreateOrderDTO createModel)
+        {
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(x => x.Fullname.ToLower().Trim() == createModel.CustomerName.ToLower().Trim()
+                && x.Phone == createModel.Phone);
+
+            foreach (var item in createModel.Details)
+            {
+                if (item == null)
+                    throw new Exception("Yêu cầu khách hàng trống!");
+
+                if (item.WeightFrom != null && item.WeightTo != null && item.WeightFrom > item.WeightTo)
+                    throw new Exception("Trọng lượng yêu cầu chưa đúng định dạng");
+            }
+
+            var orderModel = new Order();
+
+            orderModel.Id = SlugId.New();
+
+            if (customer != null)
+                orderModel.CustomerId = customer.Id;
+
+            if (customer == null)
+            {
+                var customerModel = new Customer();
+                customerModel.Id = SlugId.New();
+                customerModel.Fullname = createModel.CustomerName;
+                customerModel.Phone = createModel.Phone;
+                customerModel.Address = createModel.Addrress ?? null;
+                customerModel.Email = createModel.Email ?? null;
+                customerModel.CreatedAt = DateTime.Now;
+                customerModel.UpdatedAt = DateTime.Now;
+                customerModel.CreatedBy = createModel.RequestedBy ?? "SYS";
+                customerModel.UpdatedBy = createModel.RequestedBy ?? "SYS";
+
+                orderModel.CustomerId = customerModel.Id;
+
+                await _context.Customers.AddAsync(customerModel);
+            }
+
+            orderModel.Code = await GenerateOrderCode();
+            orderModel.Status = order_status.MỚI;
+            orderModel.CreatedAt = DateTime.Now;
+            orderModel.UpdatedAt = DateTime.Now;
+            orderModel.CreatedBy = createModel.RequestedBy ?? "SYS";
+            orderModel.UpdatedBy = createModel.RequestedBy ?? "SYS";
+
+            await _context.Orders.AddAsync(orderModel);
+
+            var specieIds = createModel.Details.Select(d => d.SpecieId).Distinct().ToList();
+            var existingSpecies = await _context.Species
+                .Where(s => specieIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id);
+
+            foreach (var detail in createModel.Details)
+            {
+                if (!existingSpecies.ContainsKey(detail.SpecieId))
+                    throw new Exception($"Không tìm thấy loài vật với ID: {detail.SpecieId}");
+
+                var newOrderRequirement = new OrderRequirement
+                {
+                    Id = SlugId.New(),
+
+                    OrderId = orderModel.Id,
+                    SpecieId = detail.SpecieId,
+                    WeightFrom = detail.WeightFrom ?? null,
+                    WeightTo = detail.WeightTo ?? null,
+                    Quantity = detail.Total,
+                    Description = detail.Description,
+
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = createModel.RequestedBy ?? "SYS",
+                    UpdatedAt = DateTime.Now,
+                    UpdatedBy = createModel.RequestedBy ?? "SYS",
+                };
+
+                await _context.OrderRequirements.AddAsync(newOrderRequirement);
+
+                if (detail.VaccintionRequirement != null)
+                {
+                    foreach (var vaccinationRequire in detail.VaccintionRequirement)
+                    {
+                        var vaccinationRequireCreate = new VaccinationRequirement
+                        {
+                            Id = SlugId.New(),
+
+                            DiseaseId = vaccinationRequire.DiseaseId,
+                            OrderRequirementId = newOrderRequirement.Id,
+                            InsuranceDuration = vaccinationRequire.InsuranceDuration ?? 21,
+
+                            CreatedAt = DateTime.Now,
+                            CreatedBy = createModel.RequestedBy ?? "SYS",
+                            UpdatedAt = DateTime.Now,
+                            UpdatedBy = createModel.RequestedBy ?? "SYS",
+                        };
+                        await _context.VaccinationRequirement.AddAsync(vaccinationRequireCreate);
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            var result = new OrderDetailsDTO
+            {
+                Id = orderModel.Id,
+                CustomerId = orderModel.CustomerId,
+                CustomerName = customer?.Fullname ?? createModel.CustomerName,
+                PhoneNumber = customer?.Phone ?? createModel.Phone,
+                Address = customer?.Address ?? createModel.Addrress,
+                Email = customer?.Email ?? createModel.Email,
+                Code = orderModel.Code,
+                Total = await _context.OrderRequirements
+        .Where(o => o.OrderId == orderModel.Id)
+        .SumAsync(x => (int?)x.Quantity) ?? 0,
+
+                Imported = await _context.OrderDetails
+        .Where(x => x.OrderId == orderModel.Id && x.ExportedDate != null)
+        .CountAsync(),
+
+                Status = orderModel.Status,
+                Details = await _context.OrderRequirements
+        .Where(x => x.OrderId == orderModel.Id)
+        .Select(req => new OrderRequirementdetails
+        {
+            OrderRequirementId = req.Id,
+            SpecieId = req.SpecieId,
+            SpecieName = _context.Species
+                .Where(s => s.Id == req.SpecieId)
+                .Select(s => s.Name)
+                .FirstOrDefault(),
+
+            WeightFrom = req.WeightFrom,
+            WeightTo = req.WeightTo,
+            Total = req.Quantity,
+            Description = req.Description,
+            VaccintionRequirement = _context.VaccinationRequirement
+                .Where(v => v.OrderRequirementId == req.Id)
+                .Select(v => new VaccinationRequireOrderDetail
+                {
+                    VaccinationRequirementId = v.Id,
+                    DiseaseId = v.DiseaseId,
+                    DiseaseName = _context.Diseases
+                        .Where(d => d.Id == v.DiseaseId)
+                        .Select(d => d.Name)
+                        .FirstOrDefault(),
+
+                    InsuranceDuration = v.InsuranceDuration
+                }).ToList()
+        }).ToListAsync()
+            };
+            return result;
+        }
+
+        public async Task<ListOrders> GetListOrder(ListOrderFilter filter)
+        {
+            var query = _context.Orders
+                .Include(c => c.Customer)
+                .AsQueryable();
+
+            if (filter != null)
+            {
+                if (!string.IsNullOrEmpty(filter.Keyword))
+                {
+                    string keyword = filter.Keyword.Trim().ToUpper();
+                    query = query.Where(v => v.Customer.Fullname.ToUpper().Contains(keyword));
+                }
+
+                if (filter.FromDate != null && filter.FromDate != DateTime.MinValue)
+                {
+                    query = query.Where(v => v.CreatedAt >= filter.FromDate);
+                }
+
+                if (filter.ToDate != null && filter.ToDate != DateTime.MinValue)
+                {
+                    query = query.Where(v => v.CreatedAt <= filter.ToDate);
+                }
+
+                if (filter.Status != null)
+                {
+                    query = query.Where(v => v.Status == filter.Status);
+                }
+            }
+
+            int total = await query.CountAsync();
+
+            var orders = await query
+                .OrderByDescending(v => v.CreatedAt)
+                .Skip(filter?.Skip ?? 0)
+                .Take(filter?.Take ?? 10)
+                .Select(v => new OrderSummary
+                {
+                    Id = v.Id,
+                    Code = v.Code,
+                    CustomerName = v.Customer.Fullname,
+                    PhoneNumber = v.Customer.Phone,
+                    Total = _context.OrderRequirements
+                        .Where(o => o.OrderId == v.Id)
+                        .Sum(x => (int?)x.Quantity) ?? 0,
+
+                    Received = _context.OrderDetails
+                        .Where(x => x.OrderId == v.Id
+                        && x.ExportedDate != null).Count(),
+                    Type = v.Type,
+                    Status = v.Status,
+                    CreatedAt = v.CreatedAt
+                })
+                .ToListAsync();
+
+            return new ListOrders
+            {
+                Total = total,
+                Items = orders
+            };
+        }
+
+        public async Task<OrderDetailsDTO> GetOrderDetailsById(string orderId)
+        {
+            var orderModel = await _context.Orders
+                .Include(c => c.Customer)
+                .FirstOrDefaultAsync(x => x.Id == orderId);
+            if (orderModel == null)
+                throw new Exception("Không tìm thấy thông tin đơn");
+
+            var result = new OrderDetailsDTO
+            {
+                Id = orderModel.Id,
+                CustomerId = orderModel.CustomerId,
+                CustomerName = orderModel.Customer.Fullname,
+                PhoneNumber = orderModel.Customer.Phone,
+                Address = orderModel.Customer.Address,
+                Email = orderModel.Customer.Email,
+                Code = orderModel.Code,
+                Total = await _context.OrderRequirements
+        .Where(o => o.OrderId == orderModel.Id)
+        .SumAsync(x => (int?)x.Quantity) ?? 0,
+
+                Imported = await _context.OrderDetails
+        .Where(x => x.OrderId == orderModel.Id && x.ExportedDate != null)
+        .CountAsync(),
+
+                Status = orderModel.Status,
+                Details = await _context.OrderRequirements
+        .Where(x => x.OrderId == orderModel.Id)
+        .Select(req => new OrderRequirementdetails
+        {
+            OrderRequirementId = req.Id,
+            SpecieId = req.SpecieId,
+            SpecieName = _context.Species
+                .Where(s => s.Id == req.SpecieId)
+                .Select(s => s.Name)
+                .FirstOrDefault(),
+
+            WeightFrom = req.WeightFrom,
+            WeightTo = req.WeightTo,
+            Total = req.Quantity,
+            Description = req.Description,
+            VaccintionRequirement = _context.VaccinationRequirement
+                .Where(v => v.OrderRequirementId == req.Id)
+                .Select(v => new VaccinationRequireOrderDetail
+                {
+                    VaccinationRequirementId = v.Id,
+                    DiseaseId = v.DiseaseId,
+                    DiseaseName = _context.Diseases
+                        .Where(d => d.Id == v.DiseaseId)
+                        .Select(d => d.Name)
+                        .FirstOrDefault(),
+
+                    InsuranceDuration = v.InsuranceDuration
+                }).ToList()
+        }).ToListAsync()
+            };
+            return result;
+        }
+
+        public async Task<OrderDetailsDTO> UpdateOrder(string orserId, UpdateOrderDTO updateOrder)
+        {
+            var orderModel = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orserId);
+            if (orderModel == null)
+                throw new Exception("Không tìm thấy đơn bán");
+
+            foreach (var item in updateOrder.Details)
+            {
+                if (item == null)
+                    throw new Exception("Yêu cầu khách hàng trống!");
+
+                if (item.WeightFrom != null && item.WeightTo != null && item.WeightFrom > item.WeightTo)
+                    throw new Exception("Trọng lượng yêu cầu chưa đúng định dạng");
+            }
+
+            var customer = await _context.Customers.FirstOrDefaultAsync(x => x.Id == orderModel.CustomerId);
+            if (customer == null)
+                throw new Exception("Không tìm thấy thông tin khách hàng");
+
+            //Update Customer
+            customer.Fullname = updateOrder.CustomerName;
+            customer.Phone = updateOrder.Phone;
+            customer.Address = updateOrder.Addrress;
+            customer.Email = updateOrder.Email;
+            customer.UpdatedAt = DateTime.Now;
+            customer.UpdatedBy = updateOrder.RequestedBy ?? "SYS";
+
+            //Update Order
+            orderModel.UpdatedAt = DateTime.Now;
+            orderModel.UpdatedBy = updateOrder.RequestedBy ?? "SYS";
+
+            //Update OrderRequirement
+            foreach (var detail in updateOrder.Details)
+            {
+                var orderRequirement = await _context.OrderRequirements.FirstOrDefaultAsync(x => x.Id == detail.Id);
+                if (orderRequirement == null)
+                    throw new Exception("Không tìm thấy thông tin yêu cầu");
+
+                orderRequirement.SpecieId = detail.SpecieId;
+                orderRequirement.WeightFrom = detail.WeightFrom;
+                orderRequirement.WeightTo = detail.WeightTo;
+                orderRequirement.Quantity = detail.Total;
+                orderRequirement.Description = detail.Description;
+                orderRequirement.UpdatedAt = DateTime.Now;
+                orderRequirement.UpdatedBy = updateOrder.RequestedBy ?? "SYS";
+
+                //Update VaccinationRequirement
+                if (detail.VaccintionRequirement != null)
+                {
+                    foreach (var insurance in detail.VaccintionRequirement)
+                    {
+                        var vaccinationRequirement = await _context.VaccinationRequirement.FirstOrDefaultAsync(x => x.Id == insurance.Id);
+                        if (vaccinationRequirement == null)
+                            throw new Exception("Không tìm thấy thông tin bảo hành");
+
+                        vaccinationRequirement.DiseaseId = insurance.DiseaseId;
+                        vaccinationRequirement.InsuranceDuration = insurance.InsuranceDuration ?? 21;
+                        vaccinationRequirement.UpdatedAt = DateTime.Now;
+                        vaccinationRequirement.UpdatedBy = updateOrder.RequestedBy;
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            var result = new OrderDetailsDTO
+            {
+                Id = orderModel.Id,
+                CustomerId = orderModel.CustomerId,
+                CustomerName = orderModel.Customer.Fullname,
+                PhoneNumber = orderModel.Customer.Phone,
+                Address = orderModel.Customer.Address,
+                Email = orderModel.Customer.Email,
+                Code = orderModel.Code,
+                Total = await _context.OrderRequirements
+        .Where(o => o.OrderId == orderModel.Id)
+        .SumAsync(x => (int?)x.Quantity) ?? 0,
+
+                Imported = await _context.OrderDetails
+        .Where(x => x.OrderId == orderModel.Id && x.ExportedDate != null)
+        .CountAsync(),
+
+                Status = orderModel.Status,
+                Details = await _context.OrderRequirements
+        .Where(x => x.OrderId == orderModel.Id)
+        .Select(req => new OrderRequirementdetails
+        {
+            OrderRequirementId = req.Id,
+            SpecieId = req.SpecieId,
+            SpecieName = _context.Species
+                .Where(s => s.Id == req.SpecieId)
+                .Select(s => s.Name)
+                .FirstOrDefault(),
+
+            WeightFrom = req.WeightFrom,
+            WeightTo = req.WeightTo,
+            Total = req.Quantity,
+            Description = req.Description,
+            VaccintionRequirement = _context.VaccinationRequirement
+                .Where(v => v.OrderRequirementId == req.Id)
+                .Select(v => new VaccinationRequireOrderDetail
+                {
+                    VaccinationRequirementId = v.Id,
+                    DiseaseId = v.DiseaseId,
+                    DiseaseName = _context.Diseases
+                        .Where(d => d.Id == v.DiseaseId)
+                        .Select(d => d.Name)
+                        .FirstOrDefault(),
+
+                    InsuranceDuration = v.InsuranceDuration
+                }).ToList()
+        }).ToListAsync()
+            };
+            return result;
+        }
+
+        private async Task<string> GenerateOrderCode()
+        {
+            var lastOrder = await _context.Orders
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            int nextNumber = 1;
+
+            if (lastOrder != null && !string.IsNullOrEmpty(lastOrder.Code) && lastOrder.Code.StartsWith("OD-"))
+            {
+                var numberPart = lastOrder.Code.Substring(3); // Bỏ "OD-"
+                if (int.TryParse(numberPart, out int currentNumber))
+                {
+                    nextNumber = currentNumber + 1;
+                }
+            }
+
+            return $"OD-{nextNumber:D2}";
+        }
 
     }
 }

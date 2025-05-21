@@ -1084,7 +1084,7 @@ namespace DataAccess.Repository.Services
                 ProcurementName = procurementPackage.Name,
                 ProcurementCode = procurementPackage.Code,
                 ExpirationDate = procurementPackage.ExpirationDate,
-                LivestockQuantity = batchExports.BatchExportDetails.Count(),
+                LivestockQuantity = batchExports?.BatchExportDetails.Count()??0,
                 diseaseRequiresForSpecie = listDiseaseRequiresForSpecie,
             };
             return requireVaccinationProcurementDetail;

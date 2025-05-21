@@ -6,12 +6,14 @@ using BusinessObjects.Constants;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using DataAccess.Repository.Interfaces;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static BusinessObjects.Constants.LmsConstants;
 
 namespace DataAccess.Repository.Services
 {
@@ -80,88 +82,122 @@ namespace DataAccess.Repository.Services
              * Hàm được dùng khi khách muốn lấy mã thẻ tai để sử dụng cho vật nuôi nào đó
              * Hàm sẽ tự động cập nhật mã thẻ tai tiếp theo
              */
-            var inspectionCodeCounter = await _context.InspectionCodeCounters
-                .Include(o => o.InspectionCodeRange)
-                .FirstOrDefaultAsync(o => o.SpecieType.Equals(type.ToString()));
 
+            var specieTypes = Enum.GetValues(typeof(specie_type))
+           .Cast<specie_type>()
+           .Select(e => e.ToString())  // Chuyển giá trị enum thành chuỗi
+           .ToList();
+            var inspectionCouter = await _context.InspectionCodeCounters.ToListAsync();
+            if (specieTypes.Count() == inspectionCouter.Count())
+            {
+                
+            }
+            else
+            {
+                foreach (var inspection in inspectionCouter)
+                {
+                    if (specieTypes.Contains(inspection.SpecieType))
+                    {
+                        var i = inspection.SpecieType;
+                        specieTypes.Remove(inspection.SpecieType);
+                    }
+                }
+                List<InspectionCodeCounter> list = new List<InspectionCodeCounter>();
+                foreach (var code in specieTypes)
+                {
+                    InspectionCodeCounter inCo = new InspectionCodeCounter()
+                    {
+                        SpecieType = code,
+                        UpdatedAt = DateTime.Now,
+                        UpdatedBy = "SYS",
+                        CreatedAt = DateTime.Now,
+                        CreatedBy = "SYS",
+                        Id = SlugId.New()
+                    };
+                    list.Add(inCo);
+                }
+                _context.InspectionCodeCounters.AddRangeAsync(list);
+                await _context.SaveChangesAsync();
+            }
+
+
+            var inspectionCodeCounter = await _context.InspectionCodeCounters
+                .FirstOrDefaultAsync(o => o.SpecieType.Equals(type.ToString()));
+            
             if (inspectionCodeCounter == null)
             {
                 throw new Exception("Không tìm thấy mã kiểm tra cho loại vật nuôi này.");
             }
+            InspectionCodeRange codeRange = new InspectionCodeRange();
+            var listCodeRange = await _context.InspectionCodeRanges
+                   .Where(x => x.SpecieTypes.Contains(type) && !x.Status.Equals(inspection_code_range_status.DÙNG_HẾT)).OrderBy(x => x.OrderNumber).ToListAsync();
+            if (inspectionCodeCounter.CurrentRangeId == null)
+            {
+               
+                var id = listCodeRange.SingleOrDefault();
+                if (id != null)
+                {
+                    inspectionCodeCounter.CurrentRangeId = id.Id;
+                    
+                }
+                else
+                {
+                    throw new Exception("Chưa có bảng mã nào của vật nuôi này");
+                }
+            }
+
+            codeRange = await _context.InspectionCodeRanges.Where(x => x.Id.Equals(inspectionCodeCounter.CurrentRangeId)).SingleOrDefaultAsync();
             //Khai báo biến để lưu giá trị trả về trước khi thay đổi
             var currentCodeNow = "";
 
             // Chuyển đổi CurrentCode và MaxCode sang int
-            int currentCode = int.Parse(inspectionCodeCounter.InspectionCodeRange.CurrentCode);
-            int maxCode = int.Parse(inspectionCodeCounter.InspectionCodeRange.EndCode);
+            int currentCode = int.Parse(codeRange.CurrentCode);
+            int maxCode = int.Parse(codeRange.EndCode);
             InspectionCodeRangeFilter filter = new InspectionCodeRangeFilter();
             var inspectionCodeRangeList = await GetListInspectionCodeRange(filter);
             // Kiểm tra nếu CurrentCode nhỏ hơn MaxCode
-            if (currentCode < maxCode)
+            int nextCurrentCode = 0;
+            
+            if (currentCode <= maxCode)
             {
                 // Tăng CurrentCode lên 1 và giữ lại định dạng string
                 //currentCode += 1;
-                inspectionCodeCounter.InspectionCodeRange.CurrentCode = currentCode.ToString("D" + inspectionCodeCounter.InspectionCodeRange.CurrentCode.Length);
+                codeRange.CurrentCode = currentCode.ToString("D" + codeRange.CurrentCode.Length);
+                nextCurrentCode = currentCode + 1;
+                codeRange.CurrentCode = nextCurrentCode.ToString("D" + codeRange.CurrentCode.Length);
             }
             else
             {
                 // Nếu CurrentCode bằng MaxCode, kiểm tra NextRangeId
                 // Đã đạt giới hạn phải chuyển sang range tiếp theo
-
-                var nextInspectionCodeRange = inspectionCodeRangeList.Items.Where(o => o.OrderNumber == (inspectionCodeCounter.InspectionCodeRange.OrderNumber + 1)).SingleOrDefault();
                 try
                 {
-                    while (int.Parse(nextInspectionCodeRange.CurrentCode) >= int.Parse(nextInspectionCodeRange.EndCode))
+                    var newCode = listCodeRange.Where(x => !x.Id.Equals(inspectionCodeCounter.CurrentRangeId)).SingleOrDefault();
+                    if (newCode != null)
                     {
-                        // Kiem tra xem trong khoang tiep theo co gia tri dung duoc hay khong
-                        nextInspectionCodeRange = inspectionCodeRangeList.Items.Where(o => o.OrderNumber == (nextInspectionCodeRange.OrderNumber + 1)).SingleOrDefault();
-                    }
-                }
-                catch
-                {
-                    throw new Exception("Không đủ mã thẻ tai cho vật nuôi " + inspectionCodeCounter.SpecieType);
-                }
-
-
-                if (nextInspectionCodeRange != null)
-                {
-
-
-                    if (nextInspectionCodeRange.CurrentCode != null)
-                    {
-                        currentCodeNow = nextInspectionCodeRange.CurrentCode;
-                        inspectionCodeCounter.CurrentRangeId = nextInspectionCodeRange.Id;
-                        // Chuyển đổi NextCurrentCode sang int và tăng lên 1
-                        int nextCurrentCode = int.Parse(nextInspectionCodeRange.CurrentCode);
-                        nextCurrentCode += 1;
-
-                        // Cập nhật CurrentCode của NextRangeId và giữ lại định dạng string
-                        nextInspectionCodeRange.CurrentCode = nextCurrentCode.ToString("D" + nextInspectionCodeRange.CurrentCode.Length);
-                        await _context.SaveChangesAsync();
-
-                        return currentCodeNow;
+                        inspectionCodeCounter.CurrentRangeId = newCode.Id;
+                        currentCode = int.Parse(newCode.CurrentCode);
+                        newCode.Status = inspection_code_range_status.ĐANG_SỬ_DỤNG;
+                        codeRange.Status = inspection_code_range_status.DÙNG_HẾT;
+                        nextCurrentCode = currentCode + 1;
+                        newCode.CurrentCode = nextCurrentCode.ToString("D" + newCode.CurrentCode.Length);
                     }
                     else
                     {
-                        throw new Exception("Không tìm thấy mã kiểm tra cho NextRangeId.");
+                        throw new Exception("Không còn bảng mã nào có thể xử dụng");
                     }
-                }
-                else
-                {
-                    throw new Exception("Không đủ mã thẻ tai cho vật nuôi " + inspectionCodeCounter.SpecieType);
-                }
+                } catch { throw new Exception("Không còn bảng mã nào có thể xử dụng"); };
+                
+
             }
 
 
             // xu ly neu current lon hon max code
             try
             {
-                currentCodeNow = inspectionCodeCounter.InspectionCodeRange.CurrentCode;
-                int nextCurrentCode = int.Parse(inspectionCodeCounter.InspectionCodeRange.CurrentCode);
-                nextCurrentCode += 1;
 
                 // Cập nhật CurrentCode của NextRangeId và giữ lại định dạng string
-                inspectionCodeCounter.InspectionCodeRange.CurrentCode = nextCurrentCode.ToString("D" + inspectionCodeCounter.InspectionCodeRange.CurrentCode.Length);
+                currentCodeNow = currentCode.ToString("D" + codeRange.CurrentCode.Length);
                 await _context.SaveChangesAsync();
             }
             catch (Exception e)
@@ -170,6 +206,47 @@ namespace DataAccess.Repository.Services
             }
 
             return currentCodeNow;
+        }
+
+        public async Task GenInspectionCodeCounter()
+        {
+            var specieTypes = Enum.GetValues(typeof(specie_type))
+                       .Cast<specie_type>()
+                       .Select(e => e.ToString())  // Chuyển giá trị enum thành chuỗi
+                       .ToList();
+            var inspectionCouter = await _context.InspectionCodeCounters.ToListAsync();
+            if (specieTypes.Count() == inspectionCouter.Count())
+            {
+                return;
+            }
+            else
+            {
+                foreach (var inspection in inspectionCouter)
+                {
+                    if (specieTypes.Contains(inspection.SpecieType))
+                    {
+                        var i = inspection.SpecieType;
+                        specieTypes.Remove(inspection.SpecieType);
+                    }
+                }
+                List<InspectionCodeCounter> list = new List<InspectionCodeCounter>();
+                foreach (var code in specieTypes)
+                {
+                    InspectionCodeCounter inCo = new InspectionCodeCounter()
+                    {
+                        SpecieType = code,
+                        UpdatedAt = DateTime.Now,
+                        UpdatedBy = "SYS",
+                        CreatedAt = DateTime.Now,
+                        CreatedBy = "SYS",
+                        Id = SlugId.New()
+                    };
+                    list.Add(inCo);
+                }
+                _context.InspectionCodeCounters.AddRangeAsync(list);
+                await _context.SaveChangesAsync();
+            }
+          
         }
 
         public async Task<ListInspectionCodeRanges> GetListInspectionCodeRange(InspectionCodeRangeFilter filter)

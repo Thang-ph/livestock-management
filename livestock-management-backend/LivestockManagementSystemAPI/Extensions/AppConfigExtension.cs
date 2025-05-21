@@ -36,7 +36,7 @@ namespace LivestockManagementSystemAPI.Extensions
             services.AddScoped<IInspectionCodeCounterRepository, InspectionCodeCounterService>();
             services.AddScoped<IInspectionCodeRangeRepository, InspectionCodeRangeService>();
             services.AddScoped<IInsuranceRequestRepository, InsuranceRequestService>();
-            services.AddScoped<IOderRepository, OrderService>();
+            services.AddScoped<IOrderRepository, OrderService>();
             services.AddScoped<ICustomerRepository, CustomerService>();
             // Tạm thời vô hiệu hóa service cập nhật cân nặng vật nuôi do gây lỗi
             // services.AddHostedService<UpdateLivestockWeightService>();

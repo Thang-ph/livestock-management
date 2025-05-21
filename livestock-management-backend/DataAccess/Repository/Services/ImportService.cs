@@ -826,7 +826,8 @@ public class ImportService : IImportRepository
             && x.ExpectedCompletionDate != null
             && x.CompletionDate == null
             && x.Status != batch_import_status.HOÀN_THÀNH
-            || x.Status != batch_import_status.ĐÃ_HỦY)
+            || x.Status != batch_import_status.ĐÃ_HỦY
+            && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
             .ToArrayAsync();
 
         result.Items = batchImport
@@ -863,7 +864,8 @@ public class ImportService : IImportRepository
             var count = await _context.BatchImportDetails
                 .Include(l => l.Livestock)
                 .Where(x => x.BatchImportId == v.Id
-                    && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
+                 && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null)
+                 && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
                 .CountAsync();
 
             return new MissingBatchImportDTO
@@ -899,7 +901,8 @@ public class ImportService : IImportRepository
             && x.ExpectedCompletionDate != null
             && x.CompletionDate == null
             && x.Status != batch_import_status.HOÀN_THÀNH
-            && x.Status != batch_import_status.ĐÃ_HỦY)
+            && x.Status != batch_import_status.ĐÃ_HỦY
+            && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
             .ToArrayAsync();
 
         result.Items = batchImport
@@ -935,7 +938,8 @@ public class ImportService : IImportRepository
             && x.ExpectedCompletionDate != null
             && x.CompletionDate == null
             && x.Status != batch_import_status.HOÀN_THÀNH
-            && x.Status != batch_import_status.ĐÃ_HỦY)
+            && x.Status != batch_import_status.ĐÃ_HỦY
+            && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
             .ToArrayAsync();
 
         //GetListNearDueBatchImport(num);

@@ -981,6 +981,9 @@ namespace BusinessObjects.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("ExportedDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("LivestockId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -1038,7 +1041,10 @@ namespace BusinessObjects.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal?>("Weight")
+                    b.Property<decimal?>("WeightFrom")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("WeightTo")
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");

@@ -67,6 +67,24 @@ namespace BusinessObjects.Dtos
         public ListImportedLivestocks ListImportedLivestocks { get; set; }
     }
 
+    public class ListOrderLivestocks : ResponseListModel<OrderLivestockInfo>
+    {
+
+    }
+    public class OrderLivestockInfo
+    {
+        public string Id { get; set; }
+        public string LivestockId { get; set; }
+        public string InspectionCode { get; set; }
+        public string? SpecieId { get; set; }
+        public string? SpecieName { get; set; }
+        public decimal? Weight { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public livestock_status Status { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? ExportedDate { get; set; }
+    }
+
     public class ListImportedLivestocks : ResponseListModel<ImportedLivestockInfo>
     {
 

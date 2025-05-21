@@ -77,12 +77,62 @@ namespace DataAccess.Repository.Services
             if (createDto == null) throw new Exception("Không thể tạo với thông tin rỗng");
             if(createDto.Type.Equals("0") || createDto.Type.Equals("ĐƠN_MUA_LẺ"))
             {
-                throw new Exception("Đang phát triển");
+                //Kiểm tra xem con vật có tồn tại trong hệ thống hay không
+                //Lý do: Vì có nhiều loại con vật có thể cùng mã kiểm dịch nên mưới phải check thế này để đảm bảo
+                var livestock = await _context.Livestocks.Where(p => p.InspectionCode.Equals(createDto.LivestockId) && p.SpeciesId.Equals(createDto.SpecieType)).SingleOrDefaultAsync();
+                if (livestock == null) throw new Exception("Mã kiểm dịch không chính xác");
+
+
+                var procurmentLivestock = await _context.OrderDetails.Where(x => x.LivestockId.Equals(livestock.Id)).Include(x => x.Order).SingleOrDefaultAsync();
+                if (procurmentLivestock == null) throw new Exception("Vật nuôi này không có trong hợp đồng !");
+                var procurment = await _context.Orders.Where(x => x.Id.Equals(procurmentLivestock.OrderId)).Include(x => x.OrderRequirements).SingleOrDefaultAsync();
+
+                //Kiểm tra hợp đồng có hợp lệ hay không
+                if (procurment == null) throw new Exception("Mã hợp đồng không hợp lệ");
+
+                //Kiểm tra loại vật nuôi có hợp lệ hay không
+                var checkSpecie = procurment.OrderRequirements.Where(p => p.SpecieId.Contains(createDto.SpecieType)).FirstOrDefault();
+                if (checkSpecie == null) throw new Exception("Loại vật nuôi không có trong hợp đồng này");
+
+                //Kiểm tra xem con vật này có phải của hợp đồng này không
+      
+
+                //Kiểm tra xem loại bệnh có được trong loại bệnh bảo hành hay không
+                var diseases = await _context.VaccinationRequirement.Where(p => p.OrderRequirementId.Equals(checkSpecie.Id)).ToListAsync();
+                var isDisease = diseases.Where(p => p.DiseaseId.Equals(createDto.DiseaseId)).SingleOrDefault();
+                if (isDisease == null) throw new Exception("Loại bệnh này không được bảo hành với hợp đồng này!");
+
+
+                InsuranceRequest requestData = new InsuranceRequest()
+                {
+                    Id = SlugId.New(),
+                    RequestLivestockId = livestock.Id,
+                    DiseaseId = createDto.DiseaseId,
+                    OtherReason = createDto.OtherReason,
+                    ImageUris = createDto.ImageUris,
+                    Status = insurance_request_status.CHỜ_DUYỆT,
+                    IsLivestockReturn = false,
+                    OrderId = procurment.Id,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
+                    CreatedBy = createDto.CreatedBy,
+                    UpdatedBy = createDto.CreatedBy,
+                    RequestLivestockStatus = insurance_request_livestock_status.KHÔNG_THU_HỒI
+                };
+                try
+                {
+                    _context.InsuranceRequests.Add(requestData);
+                    await _context.SaveChangesAsync();
+                    var responseData = _mapper.Map<InsurenceRequestDTO>(requestData);
+                    return responseData;
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(ex.Message + " Lỗi khi lưu vào database");
+                }
             }
             else
             {
-                
-                
 
                 //Kiểm tra xem con vật có tồn tại trong hệ thống hay không
                 //Lý do: Vì có nhiều loại con vật có thể cùng mã kiểm dịch nên mưới phải check thế này để đảm bảo
@@ -227,7 +277,7 @@ namespace DataAccess.Repository.Services
                 RequestLivestockId = x.RequestLivestockId,
                 NewLivestockId = x.NewLivestockId,
                 Status = x.Status.ToString(),
-                InsurenceRequestName = x.ProcurementId != null ? x.ProcurementPackage.Name : x.Order.Id.ToString(),
+                InsurenceRequestName = x.ProcurementId != null ? x.ProcurementPackage.Name : "Đơn mua lẻ mã " + x.Order.Code.ToString(),
                 ProcurementDetailId = x.ProcurementId,
                 OrderRequirementId = x.OrderId,
                 CreatedAt = x.CreatedAt,
