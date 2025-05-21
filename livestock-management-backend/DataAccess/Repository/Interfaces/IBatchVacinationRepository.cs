@@ -34,5 +34,6 @@ namespace DataAccess.Repository.Interfaces
         Task<LivestockRequireVaccinationProcurement> GetLivestockRequirementForProcurement(string livestockId, string procurementId);
         Task<LivestockRequireVaccinationProcurement> GetLivestockRequirementForProcurement(string inspectionCode, specie_type specieType,string procurementId);
         Task<LivestockVaccination> AddLivestockVaccinationToVaccinationBatch(LivestockVaccinationAddByInspectionCode livestockVaccinationAddByInspectionCode);
+        Task<SingleVaccinationCreate> AddLivestockVaccinationToSingleVaccination(SingleVaccinationCreate singleVaccination);
     }
 }

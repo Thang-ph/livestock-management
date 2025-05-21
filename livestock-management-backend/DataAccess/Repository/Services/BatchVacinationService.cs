@@ -1262,5 +1262,42 @@ namespace DataAccess.Repository.Services
             await _context.SaveChangesAsync();
             return livestockVaccination;
         }
+
+        public async Task<SingleVaccinationCreate> AddLivestockVaccinationToSingleVaccination(SingleVaccinationCreate singleVaccinationCreate)
+        {
+            if (!String.IsNullOrEmpty(singleVaccinationCreate.BatchImportId))
+            {
+                BatchImport batchImport = _context.BatchImports.FirstOrDefault(x => x.Id == singleVaccinationCreate.BatchImportId);
+                if (batchImport == null)
+                {
+                    throw new Exception("Không tìm thấy lô nhập này");
+                }
+            }
+            if (_context.Livestocks.FirstOrDefault(x => x.Id == singleVaccinationCreate.LivestockId)==null){
+                throw new Exception("Vật nuôi này không tồn tại");
+            }
+            if (_context.Medicines.FirstOrDefault(x => x.Id == singleVaccinationCreate.MedicineId) == null)
+            {
+                throw new Exception("Thuốc này không tồn tại");
+            }
+            if (_userManager.Users.FirstOrDefault(x => x.Id == singleVaccinationCreate.CreatedBy) == null)
+            {
+                throw new Exception("Người thực hiện này không tồn tại");
+            }
+            SingleVaccination singleVaccination = new SingleVaccination
+            {
+                Id = SlugId.New(),
+                BatchImportId = singleVaccinationCreate.BatchImportId,
+                CreatedAt = DateTime.Now,
+                CreatedBy = singleVaccinationCreate.CreatedBy,
+                UpdatedAt = DateTime.Now,
+                UpdatedBy = singleVaccinationCreate.CreatedBy,
+                LivestockId = singleVaccinationCreate.LivestockId,
+                MedicineId = singleVaccinationCreate.MedicineId
+            };
+           await _context.AddAsync(singleVaccination);
+            await _context.SaveChangesAsync();
+            return singleVaccinationCreate;
+        }
     }
 }

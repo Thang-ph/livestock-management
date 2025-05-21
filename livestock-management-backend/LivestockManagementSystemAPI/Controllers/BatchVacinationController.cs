@@ -1141,5 +1141,32 @@ namespace LivestockManagementSystemAPI.Controllers
                 return GetError(ex.Message);
             }
         }
+        [HttpPost("add-livestock-vacination-to-single-vaccination")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<SingleVaccinationCreate>> AddLivestockVaccinationToSingleVaccination([FromBody] SingleVaccinationCreate singleVaccination)
+        {
+            try
+            {
+
+                if (!ModelState.IsValid)
+                {
+                    var errors = string.Join(" | ", ModelState.Values
+                        .SelectMany(v => v.Errors)
+                        .Select(e => e.ErrorMessage));
+                    _logger.LogWarning($"[{this.GetType().Name}]/{nameof(Create)} : ModelState Errors: {errors}");
+                    return GetError("ModelState not Valid");
+                }
+                SingleVaccinationCreate livestockVaccination = await _batchVacinationRepository.AddLivestockVaccinationToSingleVaccination(singleVaccination);
+                return SaveSuccess(livestockVaccination);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(AddLivestockVaccinationToSingleVaccination)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
     }
 }

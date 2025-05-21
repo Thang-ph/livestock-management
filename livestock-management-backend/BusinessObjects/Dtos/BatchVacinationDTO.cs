@@ -209,4 +209,13 @@ namespace BusinessObjects.Dtos
         public IsCreated isCreated { get; set; }
         public int TotalQuantity { get; set; }
     }
+    public class SingleVaccinationCreate
+    {
+        public string? BatchImportId { get; set; }
+        public string LivestockId { get; set; }
+        public string MedicineId { get; set; }
+     
+        public string CreatedBy { get; set; }
+
+    }
 }
