@@ -79,7 +79,7 @@ namespace DataAccess.Repository.Services
             {
                 //Kiểm tra xem con vật có tồn tại trong hệ thống hay không
                 //Lý do: Vì có nhiều loại con vật có thể cùng mã kiểm dịch nên mưới phải check thế này để đảm bảo
-                var livestock = await _context.Livestocks.Where(p => p.InspectionCode.Equals(createDto.LivestockId) && p.SpeciesId.Equals(createDto.SpecieType)).SingleOrDefaultAsync();
+                var livestock = await _context.Livestocks.Where(p => p.InspectionCode.Equals(createDto.LivestockInspectionCode) && p.SpeciesId.Equals(createDto.SpecieId)).SingleOrDefaultAsync();
                 if (livestock == null) throw new Exception("Mã kiểm dịch không chính xác");
 
 
@@ -91,7 +91,7 @@ namespace DataAccess.Repository.Services
                 if (procurment == null) throw new Exception("Mã hợp đồng không hợp lệ");
 
                 //Kiểm tra loại vật nuôi có hợp lệ hay không
-                var checkSpecie = procurment.OrderRequirements.Where(p => p.SpecieId.Contains(createDto.SpecieType)).FirstOrDefault();
+                var checkSpecie = procurment.OrderRequirements.Where(p => p.SpecieId.Contains(createDto.SpecieId)).FirstOrDefault();
                 if (checkSpecie == null) throw new Exception("Loại vật nuôi không có trong hợp đồng này");
 
                 //Kiểm tra xem con vật này có phải của hợp đồng này không
@@ -99,7 +99,7 @@ namespace DataAccess.Repository.Services
 
                 //Kiểm tra xem loại bệnh có được trong loại bệnh bảo hành hay không
                 var diseases = await _context.VaccinationRequirement.Where(p => p.OrderRequirementId.Equals(checkSpecie.Id)).ToListAsync();
-                var isDisease = diseases.Where(p => p.DiseaseId.Equals(createDto.DiseaseId)).SingleOrDefault();
+                var isDisease = diseases.Where(p => p.DiseaseId.Equals(createDto.DiseaseId)).FirstOrDefault();
                 if (isDisease == null) throw new Exception("Loại bệnh này không được bảo hành với hợp đồng này!");
 
 
@@ -136,7 +136,9 @@ namespace DataAccess.Repository.Services
 
                 //Kiểm tra xem con vật có tồn tại trong hệ thống hay không
                 //Lý do: Vì có nhiều loại con vật có thể cùng mã kiểm dịch nên mưới phải check thế này để đảm bảo
-                var livestock = await _context.Livestocks.Where(p => p.InspectionCode.Equals(createDto.LivestockId) && p.SpeciesId.Equals(createDto.SpecieType)).SingleOrDefaultAsync();
+                var livestock = await _context.Livestocks
+                    .Include(s => s.Species)
+                    .Where(p => p.InspectionCode.Equals(createDto.LivestockInspectionCode) && p.SpeciesId.Equals(createDto.SpecieId)).SingleOrDefaultAsync();
                 if (livestock == null) throw new Exception("Mã kiểm dịch không chính xác");
 
 
@@ -148,7 +150,7 @@ namespace DataAccess.Repository.Services
                 if (procurment == null) throw new Exception("Mã hợp đồng không hợp lệ");
 
                 //Kiểm tra loại vật nuôi có hợp lệ hay không
-                var checkSpecie = procurment.ProcurementDetails.Where(p => p.SpeciesId.Contains(createDto.SpecieType)).FirstOrDefault();
+                var checkSpecie = procurment.ProcurementDetails.Where(p => p.SpeciesId.Contains(createDto.SpecieId)).FirstOrDefault();
                 if (checkSpecie == null) throw new Exception("Loại vật nuôi không có trong hợp đồng này");
 
                 //Kiểm tra xem con vật này có phải của hợp đồng này không

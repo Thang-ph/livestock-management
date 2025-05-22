@@ -71,11 +71,11 @@ namespace BusinessObjects.Dtos
         public class CreateInsurenceDTO
         {
             public string Type { get; set; } //Loại hợp đồng
-            public string LivestockId { get; set; }
+            public string LivestockInspectionCode { get; set; }
             public string DiseaseId { get; set; }
             public string? OtherReason { get; set; }
             public string ImageUris { get; set; }
-            public string SpecieType { get; set; }
+            public string SpecieId { get; set; }
             public string CreatedBy { get; set; } = "HieuNT";
         
         }
