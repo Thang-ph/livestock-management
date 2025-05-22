@@ -11,8 +11,11 @@ namespace BusinessObjects.Dtos
         public decimal? MinWeight { get; set; }
         public decimal? MaxWeight { get; set; }
         public IEnumerable<string>? SpeciesIds { get; set; }
-        //[JsonConverter(typeof(JsonStringEnumConverter))]
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public IEnumerable<livestock_status>? Statuses { get; set; }
+        public IEnumerable<string>? DiseaseIds { get; set; }
+        public IEnumerable<string>? DiseaseVaccinatedIds { get; set; }
+        public bool? IsMissingInformation { get; set; } = true;
     }
 
     public class LivestockIdFindDTO
@@ -200,7 +203,8 @@ namespace BusinessObjects.Dtos
         public string Disease { get; set; }
         public DateTime dateOfRecord { get; set; }
         public string MedicineName { get; set; }
-        public string Status { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public medical_history_status Status { get; set; }
 
     }
 
@@ -213,4 +217,89 @@ namespace BusinessObjects.Dtos
 
     }
 
+    public class DashboardLivestock
+    {
+        public DiseaseRatioSummary DiseaseRatioSummary { get; set; }
+        public VaccinationRatioSummary VaccinationRatioSummary { get; set; }
+        public int TotalDisease { get; set; } = 0;
+        public int TotalLivestockMissingInformation { get; set; } = 0;
+        public InspectionCodeQuantitySummary InspectionCodeQuantitySummary { get; set; }
+        public SpecieRatioSummary SpecieRatioSummary { get; set; }
+        public WeightRatioSummary WeightRatioSummary { get; set; }
+    }
+
+    public class DiseaseRatio 
+    {
+        public string DiseaseId { get; set; }
+        public string DiseaseName { get; set; }
+        public int Quantity { get; set; } = 0;
+        public decimal Ratio { get; set; } = 0;
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public severity Severity { get; set; } = severity.MEDIUM;
+    }
+
+    public class DiseaseRatioSummary : ResponseListModel<DiseaseRatio>
+    {
+        public decimal TotalRatio { get; set; } = 0;
+    }
+
+    public class VaccinationRatio
+    {
+        public string DiseaseId { get; set; }
+        public string DiseaseName { get; set; }
+        public decimal Ratio { get; set; } = 0;
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public severity Severity { get; set; } = severity.MEDIUM;
+    }
+
+    public class VaccinationRatioSummary : ResponseListModel<VaccinationRatio>
+    {
+
+    }
+
+    public class SpecieRatio
+    {
+        public string SpecieId { get; set; }
+        public string SpecieName { get; set; }
+        public int Quantity { get; set; } = 0;
+        public decimal Ratio { get; set; } = 0;
+    }
+
+    public class SpecieRatioSummary : ResponseListModel<SpecieRatio>
+    {
+
+    }
+
+    public class WeightRatio
+    {
+        public string WeightRange { get; set; }
+        public int Quantity { get; set; } = 0;
+        public decimal Ratio { get; set; } = 0;
+    }
+
+    public class WeightRatioBySpecie
+    {
+        public string SpecieId { get; set; }
+        public string SpecieName { get; set; }
+        public IEnumerable<WeightRatio> WeightRatios { get; set; }
+        public int TotalQuantity { get; set; } = 0;
+    }
+
+    public class WeightRatioSummary : ResponseListModel<WeightRatioBySpecie>
+    {
+
+    }
+
+    public class InspectionCodeQuantityBySpecie
+    {
+        public specie_type Specie_Type { get; set; }
+        public int TotalQuantity { get; set; } = 0;
+        public int RemainingQuantity { get; set; } = 0;
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public severity Severity { get; set; } = severity.MEDIUM;
+    }
+    public class InspectionCodeQuantitySummary : ResponseListModel<InspectionCodeQuantityBySpecie>
+    {
+
+    }
 }

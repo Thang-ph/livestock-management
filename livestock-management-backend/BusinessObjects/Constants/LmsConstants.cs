@@ -93,7 +93,8 @@
             TRUYỀN_NHIỄM,
             KHÔNG_TRUYỀN_NHIỄM
         }
-         public enum medical_histories_status
+
+        public enum medical_history_status
         {
             CHỜ_KHÁM,       
             ĐANG_ĐIỀU_TRỊ,  
@@ -153,6 +154,7 @@
             HOÀN_THÀNH,
             ĐÃ_HỦY
         }
+
         public enum OrderBy
         {
             HẠN_HOÀN_THÀNH_TĂNG_DẦN,
@@ -160,18 +162,28 @@
             SỐ_LƯỢNG_CÒN_THIẾU_GIẢM_DẦN,
             SỐ_LƯỢNG_CÒN_THIẾU_TĂNG_DẦN
         }
+
         public enum IsCreated
         {
            ĐÃ_TẠO,
            CHƯA_TẠO,
            ĐÃ_HOÀN_THÀNH
         }
+
         public enum insurance_request_livestock_status
         {
             KHÔNG_THU_HỒI,
             CHỜ_THU_HỒI,
             ĐÃ_THU_HỒI
         }
+
+        public enum severity
+        {
+            HIGH,
+            MEDIUM,
+            LOW
+        }
+         
         public static String urlDeploy = "lms.com/";
     }
 }

@@ -16,11 +16,14 @@ namespace DataAccess.Repository.Services
     public class LivestockService : ILivestockRepository
     {
         private readonly LmsContext _context;
+        private readonly CloudinaryService _cloudinaryService;
 
-        public LivestockService(LmsContext context)
+        public LivestockService(LmsContext context, CloudinaryService cloudinaryService)
         {
             _context = context;
+            _cloudinaryService = cloudinaryService;
         }
+
         public byte[] GenerateQRCode(string text)
         {
             byte[] QRCode = null;
@@ -97,7 +100,6 @@ namespace DataAccess.Repository.Services
                 }
             }
         }
-
 
         public async Task<ListLivestocks> GetListLivestocks(ListLivestocksFilter filter)
         {
@@ -237,7 +239,6 @@ namespace DataAccess.Repository.Services
             };
         }
 
-
         public async Task<LivestockSummary> GetLivestockSummaryInfo(string id)
         {
             var livestock = await _context.Livestocks.FindAsync(id) ??
@@ -318,6 +319,7 @@ namespace DataAccess.Repository.Services
             };
             return result;
         }
+
         public async Task<LivestockGeneralInfo> GetLivestockGeneralInfo(string inspectionCode, specie_type specieType)
         {
             if (string.IsNullOrEmpty(inspectionCode))
@@ -348,6 +350,314 @@ namespace DataAccess.Repository.Services
             result.WeightEstimate = livestock.WeightEstimate;
             result.BarnId = livestock.BarnId;
             return result;
+        }
+
+        public async Task<DashboardLivestock> GetDashboarLivestock()
+        {
+            var result = new DashboardLivestock()
+            {
+                DiseaseRatioSummary = new DiseaseRatioSummary
+                {
+                    Items = new List<DiseaseRatio>
+                    {
+                        new DiseaseRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Lở mồm long móng",
+                            Quantity = 1,
+                            Ratio = 0.1M,
+                            Severity = severity.HIGH
+                        },
+                        new DiseaseRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Đau mắt",
+                            Quantity = 24,
+                            Ratio = 0.24M,
+                            Severity = severity.HIGH
+                        },
+                        new DiseaseRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Bệnh khác",
+                            Quantity = 0,
+                            Ratio = 0M,
+                            Severity = severity.LOW
+                        }
+                    },
+                    Total = 25,
+                    TotalRatio = 0.25M
+                },
+                TotalDisease = 6,
+                VaccinationRatioSummary = new VaccinationRatioSummary
+                {
+                    Items = new List<VaccinationRatio>
+                    {
+                        new VaccinationRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Tẩy kí sing trùng",
+                            Ratio = 0.6M,
+                            Severity = severity.HIGH
+                        },
+                        new VaccinationRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Lở mồm long móng",
+                            Ratio = 0.7M,
+                            Severity = severity.MEDIUM
+                        },
+                        new VaccinationRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Tụ huyết trùng",
+                            Ratio = 1M,
+                            Severity = severity.LOW
+                        },
+                        new VaccinationRatio
+                        {
+                            DiseaseId = "1",
+                            DiseaseName = "Viêm da nổi cục",
+                            Ratio = 1M,
+                            Severity = severity.LOW
+                        }
+                    },
+                    Total = 4
+                },
+                TotalLivestockMissingInformation = 10,
+                InspectionCodeQuantitySummary = new InspectionCodeQuantitySummary
+                {
+                    Items = new List<InspectionCodeQuantityBySpecie>
+                    {
+                        new InspectionCodeQuantityBySpecie
+                        {
+                            Specie_Type = specie_type.TRÂU,
+                            TotalQuantity = 500,
+                            RemainingQuantity = 40,
+                            Severity = severity.HIGH,
+                        },
+                        new InspectionCodeQuantityBySpecie
+                        {
+                            Specie_Type = specie_type.BÒ,
+                            TotalQuantity = 1000,
+                            RemainingQuantity = 100,
+                            Severity = severity.MEDIUM,
+                        },
+                        new InspectionCodeQuantityBySpecie
+                        {
+                            Specie_Type = specie_type.DÊ,
+                            TotalQuantity = 100,
+                            RemainingQuantity = 90,
+                            Severity = severity.LOW,
+                        },
+                    },
+                    Total = 3,
+                },
+                SpecieRatioSummary = new SpecieRatioSummary
+                {
+                    Items = new List<SpecieRatio> 
+                    { 
+                        new SpecieRatio
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Bò lai Sind cái",
+                            Quantity = 25,
+                            Ratio = 0.25M
+                        },
+                        new SpecieRatio
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Bò lai Sind đực",
+                            Quantity = 10,
+                            Ratio = 0.1M
+                        },
+                        new SpecieRatio
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Bò BBB cái",
+                            Quantity = 25,
+                            Ratio = 0.25M
+                        },
+                        new SpecieRatio
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Bò BBB đực",
+                            Quantity = 10,
+                            Ratio = 0.1M
+                        },
+                        new SpecieRatio
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Trâu cái",
+                            Quantity = 25,
+                            Ratio = 0.25M
+                        },new SpecieRatio
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Trâu đực",
+                            Quantity = 5,
+                            Ratio = 0.05M
+                        },
+                    },
+                    Total = 100
+                },
+                WeightRatioSummary = new WeightRatioSummary 
+                { 
+                    Items = new List<WeightRatioBySpecie>
+                    {
+                        new WeightRatioBySpecie
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Bò lai Sind cái",
+                            TotalQuantity = 25,
+                            WeightRatios = new List<WeightRatio>
+                            {
+                                new WeightRatio
+                                {
+                                    WeightRange = "<90 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "90 - 130 kg",
+                                    Quantity = 0,
+                                    Ratio = 0M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "130 - 160 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "160 - 190 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "190 - 250 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = ">250 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                            }
+                        },
+                        new WeightRatioBySpecie
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Bò BBB cái",
+                            TotalQuantity = 25,
+                            WeightRatios = new List<WeightRatio>
+                            {
+                                new WeightRatio
+                                {
+                                    WeightRange = "<90 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "90 - 130 kg",
+                                    Quantity = 0,
+                                    Ratio = 0M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "130 - 160 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "160 - 190 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "190 - 250 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = ">250 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                            }
+                        },
+                        new WeightRatioBySpecie
+                        {
+                            SpecieId = "1",
+                            SpecieName = "Trâu cái",
+                            TotalQuantity = 25,
+                            WeightRatios = new List<WeightRatio>
+                            {
+                                new WeightRatio
+                                {
+                                    WeightRange = "<90 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "90 - 130 kg",
+                                    Quantity = 0,
+                                    Ratio = 0M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "130 - 160 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "160 - 190 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = "190 - 250 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                                new WeightRatio
+                                {
+                                    WeightRange = ">250 kg",
+                                    Quantity = 5,
+                                    Ratio = 0.2M
+                                },
+                            }
+                        },
+                    },
+                    Total = 100,
+                }
+            };
+
+            return result;
+        }
+
+        public async Task<string> GetDiseaseReport()
+        {
+            return 
+                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+        }
+
+        public async Task<string> GetWeightBySpecieReport()
+        {
+            return
+                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
         }
     }
 }

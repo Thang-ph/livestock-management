@@ -343,10 +343,10 @@ namespace BusinessObjects
 
 
             optionsBuilder.Entity<BatchVaccinationProcurement>()
-      .HasOne(detail => detail.BatchVaccination)
-      .WithMany(bv => bv.BatchVaccinationProcurement)
-      .HasForeignKey(detail => detail.BatchVaccinationId)
-      .OnDelete(DeleteBehavior.Restrict);
+              .HasOne(detail => detail.BatchVaccination)
+              .WithMany(bv => bv.BatchVaccinationProcurement)
+              .HasForeignKey(detail => detail.BatchVaccinationId)
+              .OnDelete(DeleteBehavior.Restrict);
 
             // Cấu hình quan hệ: BatchVaccinationProcurementDetail -> ProcurementPackage
             optionsBuilder.Entity<BatchVaccinationProcurement>()
@@ -355,10 +355,10 @@ namespace BusinessObjects
                 .HasForeignKey(detail => detail.ProcurementDetailId)
                 .OnDelete(DeleteBehavior.Restrict);
             optionsBuilder.Entity<SingleVaccination>()
-    .HasOne(sv => sv.BatchImport)
-    .WithMany(bi => bi.SingleVaccinations)
-    .HasForeignKey(sv => sv.BatchImportId)
-    .OnDelete(DeleteBehavior.SetNull); // hoặc .Restrict nếu không muốn xóa cascade
+                .HasOne(sv => sv.BatchImport)
+                .WithMany(bi => bi.SingleVaccinations)
+                .HasForeignKey(sv => sv.BatchImportId)
+                .OnDelete(DeleteBehavior.SetNull); // hoặc .Restrict nếu không muốn xóa cascade
             optionsBuilder.Entity<SingleVaccination>()
                 .HasOne(sv => sv.Livestock)
                 .WithMany(l => l.SingleVaccinations)
@@ -436,6 +436,9 @@ namespace BusinessObjects
             optionsBuilder.Entity<Order>()
                 .Property(e => e.Type)
                 .HasConversion(new EnumToStringConverter<order_type>());
+            optionsBuilder.Entity<MedicalHistory>()
+                .Property(e => e.Status)
+                .HasConversion(new EnumToStringConverter<medical_history_status>());
         }
     }
 }

@@ -809,8 +809,10 @@ namespace BusinessObjects.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("MedicineId")
-                        .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("RecoverDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1819,8 +1821,7 @@ namespace BusinessObjects.Migrations
                     b.HasOne("BusinessObjects.Models.Medicine", "Medicine")
                         .WithMany("MedicalHistories")
                         .HasForeignKey("MedicineId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Disease");
 

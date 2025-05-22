@@ -25,7 +25,6 @@ namespace LivestockManagementSystemAPI.Controllers
         private readonly ILivestockRepository _livestockRepository;
         private readonly ILogger<LivestockController> _logger;
 
-
         public LivestockController(ILivestockRepository livestockRepository, ILogger<LivestockController> logger)
         {
             _livestockRepository = livestockRepository;
@@ -197,6 +196,7 @@ namespace LivestockManagementSystemAPI.Controllers
                 return GetError(ex.Message);
             }
         }
+
         [HttpGet("get-general-info-of-livestock/{inspectionCode}/{specieType}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -368,6 +368,59 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
+        [HttpGet("dashboard")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<DashboardLivestock>> GetDashboarLivestock()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetDashboarLivestock();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLiverstockVaccinationHistory)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-disease-report")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetDiseaseReport()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetDiseaseReport();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLiverstockVaccinationHistory)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-weight-by-specie-report")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetWeightBySpecieReport()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetWeightBySpecieReport();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLiverstockVaccinationHistory)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
     }
 }
 
