@@ -856,35 +856,29 @@ public class ImportService : IImportRepository
 
         var batchImports = await _context.BatchImports
             .Where(x => x.Status == batch_import_status.CHỜ_NHẬP)
-            .ToListAsync();
+            .ToArrayAsync();
 
-        // Duyệt từng batch và tạo danh sách DTO bất đồng bộ
-        var tasks = batchImports.Select(async v =>
-        {
-            var count = await _context.BatchImportDetails
-                .Include(l => l.Livestock)
-                .Where(x => x.BatchImportId == v.Id
-                 && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null)
-                 && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
-                .CountAsync();
 
-            return new MissingBatchImportDTO
+        //var count = await _context.BatchImportDetails
+        //    .Include(l => l.Livestock)
+        //    .Where(x => x.BatchImportId == v.Id
+        //     && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null)
+        //     && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
+        //    .CountAsync();
+
+        result.Items = batchImports
+            .Select(v => new MissingBatchImportDTO
             {
                 BatchImportId = v.Id,
                 BatchImportName = v.Name,
-                TotalMissing = "Thiếu " + (v.EstimatedQuantity - count) + " con",
+                TotalMissing = "Thiếu " + (v.EstimatedQuantity - 1) + " con",
                 BatchImportCompletedDate = v.ExpectedCompletionDate,
                 CreatedAt = v.CreatedAt
-            };
-        });
-
-        var dtoList = await Task.WhenAll(tasks);
-
-        result.Items = dtoList
+            })
             .OrderByDescending(v => v.TotalMissing)
-            .ToArray();
+            .ToArray(); 
 
-        result.Total = dtoList.Length;
+        result.Total = batchImports.Length;
         return result;
     }
 

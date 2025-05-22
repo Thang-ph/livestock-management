@@ -40,6 +40,16 @@ namespace DataAccess.Repository.Services
             if (order.Status == order_status.HOÀN_THÀNH || order.Status == order_status.ĐÃ_HỦY)
                 throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể chọn ");
 
+            //Check Order reached the limit of livestocks
+            var livestockQuantity = await _context.OrderRequirements
+                .Where(o => o.OrderId == orderId)
+                .SumAsync(x => (int?)x.Quantity);
+            var livestockInOrder = await _context.OrderDetails
+                .Where(x => x.OrderId == orderId)
+                .CountAsync();
+            if (livestockQuantity == livestockInOrder)
+                throw new Exception("Đơn đã đủ không thể thêm");
+
             var livestock = await _context.Livestocks
                 .Include(s => s.Species)
                 .FirstOrDefaultAsync(x => x.Id == model.LivestockId);
@@ -144,15 +154,12 @@ namespace DataAccess.Repository.Services
 
             await _context.OrderDetails.AddAsync(orderDetails);
 
-            var livestockQuantity = await _context.OrderRequirements
-            .Where(o => o.OrderId == orderId)
-            .SumAsync(x => (int?)x.Quantity);
-
-            var livestockInOrder = await _context.OrderDetails
+            var livestockChooseInOrder = await _context.OrderDetails
                 .Where(x => x.OrderId == orderId
                 && x.ExportedDate == null)
                 .CountAsync();
-            if (livestockInOrder + 1 == livestockQuantity)
+
+            if (livestockChooseInOrder + 1 == livestockQuantity)
             {
                 order.Status = order_status.CHỜ_BÀN_GIAO;
                 order.AwaitDeliverAt = DateTime.Now;
