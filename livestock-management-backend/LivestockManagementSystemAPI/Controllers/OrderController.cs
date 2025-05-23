@@ -233,7 +233,7 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
-        [HttpPut("update-order/{order}")]
+        [HttpPut("update-order/{orderId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
