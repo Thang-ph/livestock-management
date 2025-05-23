@@ -52,5 +52,21 @@ namespace DataAccess.Repository.Services
             var uploadResult = await _cloudinary.UploadAsync(uploadParams);
             return uploadResult.SecureUrl.ToString();
         }
+
+        public async Task<string> UploadFileStreamAsync(Stream stream, string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+                throw new Exception("File name is missing");
+
+            var uploadParams = new RawUploadParams
+            {
+                File = new FileDescription(fileName, stream),
+                PublicId = Path.GetFileNameWithoutExtension(fileName),
+                //ResourceType = "raw"
+            };
+
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            return uploadResult?.SecureUrl?.ToString();
+        }
     }
 }

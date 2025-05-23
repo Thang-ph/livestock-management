@@ -22,11 +22,11 @@ namespace DataAccess.Repository.Interfaces
         Task<bool> RequestChoose(string orderId);
         Task<bool> RemoveRequestChoose(string orderId);
         Task<bool> RequestExport(string orderId);
-        Task ImportExcelfile(string orderId, string requestedBy, IFormFile file);
-        Task <Stream> GetTemplateListLivestock(string orderId);
-        Task <Stream> GetReportedFile(string orderId);
+        Task ImportListChosedLivestock(string orderId, string requestedBy, IFormFile file);
+        Task <string> GetTemplateToChooseLivestock(string orderId);
+        Task <string> GetReportedFile(string orderId);
         Task <bool> ConfirmExport (string orderId, string? requestedBy);
         Task<ListOrders> GetListOrderToChoose();
-        Task<ListOrders> GetListOrderToExport();
+        Task<ListOrderExport> GetListOrderToExport();
     }
 }

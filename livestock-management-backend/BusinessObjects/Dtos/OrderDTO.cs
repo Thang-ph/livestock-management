@@ -13,6 +13,10 @@ namespace BusinessObjects.Dtos
     public class ListOrders : ResponseListModel<OrderSummary>
     {
 
+    }   
+    public class ListOrderExport : ResponseListModel<OrderExport>
+    {
+
     }
 
     public class OrderSummary
@@ -30,7 +34,21 @@ namespace BusinessObjects.Dtos
         public DateTime CreatedAt { get; set; }
     }
 
-
+    public class OrderExport
+    {
+        public string Id { get; set; }
+        public string Code { get; set; }
+        public string CustomerName { get; set; }
+        public string PhoneNumber { get; set; }
+        public int Total { get; set; }
+        public int Received { get; set; }
+        public int ExportCount { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public order_status Status { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public order_type Type { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
     public class OrderDetailsDTO
     {
         public string Id { get; set; }
@@ -44,6 +62,7 @@ namespace BusinessObjects.Dtos
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public order_status Status { get; set; }
         public string Code { get; set; }
+        [Required(ErrorMessage = "Danh sách chi tiết không được để trống.")]
         public IEnumerable<OrderRequirementdetails> Details { get; set; }
     }
 
@@ -121,6 +140,7 @@ namespace BusinessObjects.Dtos
         public string Phone { get; set; }
         public string? Addrress { get; set; }
         public string? Email { get; set; }
+        [Required(ErrorMessage = "Danh sách chi tiết không được để trống.")]
         public IEnumerable<UpdateOrderDetailsRequirement> Details { get; set; }
         public string? RequestedBy { get; set; }
 

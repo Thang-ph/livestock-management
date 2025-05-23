@@ -10,6 +10,7 @@ using DataAccess.Repository.Services;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Reflection;
 using static BusinessObjects.Constants.LmsConstants;
+using Microsoft.IdentityModel.Tokens;
 
 namespace LivestockManagementSystemAPI.Controllers
 {
@@ -368,6 +369,7 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
+
         [HttpGet("dashboard")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -381,7 +383,7 @@ namespace LivestockManagementSystemAPI.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLiverstockVaccinationHistory)} " + ex.Message);
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetDashboarLivestock)} " + ex.Message);
                 return GetError(ex.Message);
             }
         }
@@ -399,7 +401,7 @@ namespace LivestockManagementSystemAPI.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLiverstockVaccinationHistory)} " + ex.Message);
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetDiseaseReport)} " + ex.Message);
                 return GetError(ex.Message);
             }
         }
@@ -417,8 +419,228 @@ namespace LivestockManagementSystemAPI.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLiverstockVaccinationHistory)} " + ex.Message);
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetWeightBySpecieReport)} " + ex.Message);
                 return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-list-livestocks-summary")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ListLivestockSummary>> GetListLivestockSummary()
+        {
+            try
+            {
+                var data = await _livestockRepository.ListLivestockSummary();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetListLivestockSummary)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-list-livestocks-report")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetListLivestocksReport()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetListLivestocksReport();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetListLivestocksReport)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-record-livestock-status-template")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetRecordLivestockStatusTemplate()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetRecordLivestockStatusTemplate();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetRecordLivestockStatusTemplate)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpPost("import-record-livestock-status-file")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> ImportRecordLivestockStatusFile([FromForm] string requestedBy,
+            IFormFile file)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(requestedBy))
+                    requestedBy = UserId;
+                await _livestockRepository.ImportRecordLivestockStatusFile(requestedBy, file);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(ImportRecordLivestockStatusFile)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-total-empty-records")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<int>> GetTotalEmptyRecords()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetTotalEmptyRecords();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetTotalEmptyRecords)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-empty-qr-codes-file")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetEmptyQrCodesFile()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetEmptyQrCodesFile();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetEmptyQrCodesFile)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpPost("create-empty-livestock-records")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> CreateEmptyLivestockRecords([FromForm] string requestedBy,
+            [FromForm] int quantity)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(requestedBy))
+                    requestedBy = UserId;
+                await _livestockRepository.CreateEmptyLivestockRecords(requestedBy, quantity);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(CreateEmptyLivestockRecords)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-record-livestock-information-template")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetRecordLivestockStatInformationTemplate()
+        {
+            try
+            {
+                var data = await _livestockRepository.GetRecordLivestockStatInformationTemplate();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetRecordLivestockStatInformationTemplate)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpPost("import-record-livestock-information-file")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> ImportRecordLivestockInformationFile([FromForm] string requestedBy,
+            IFormFile file)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(requestedBy))
+                    requestedBy = UserId;
+                await _livestockRepository.ImportRecordLivestockInformationFile(requestedBy, file);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(ImportRecordLivestockInformationFile)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpPost("mark-livestocks-recover")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> MarkLivestockRecover([FromBody] UpdateLivestockRequest request)
+        {
+            try
+            {
+                if (request == null) 
+                    throw new ArgumentNullException(nameof(request));
+                if (string.IsNullOrEmpty(request.RequestedBy))
+                    request.RequestedBy = UserId;
+                await _livestockRepository.ChangeLivestockStatus(request.RequestedBy, request.LivestockIds.ToArray(), livestock_status.KHỎE_MẠNH);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(MarkLivestockRecover)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpPost("mark-livestocks-dead")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> MarkLivestockDead([FromBody] UpdateLivestockRequest request)
+        {
+            try
+            {
+                if (request == null)
+                    throw new ArgumentNullException(nameof(request));
+                if (string.IsNullOrEmpty(request.RequestedBy))
+                    request.RequestedBy = UserId;
+                await _livestockRepository.ChangeLivestockStatus(request.RequestedBy, request.LivestockIds.ToArray(), livestock_status.CHẾT);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(MarkLivestockDead)} " + ex.Message);
+                return SaveError(ex.Message);
             }
         }
     }

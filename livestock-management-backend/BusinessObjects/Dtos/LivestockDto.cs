@@ -37,6 +37,7 @@ namespace BusinessObjects.Dtos
         public string? Origin { get; set; } = "N/A";
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public livestock_status Status { get; set; }
+        public bool IsMissingInformation { get; set; } = false;
     }
 
     public class LivestockBatchImportInfo
@@ -301,5 +302,30 @@ namespace BusinessObjects.Dtos
     public class InspectionCodeQuantitySummary : ResponseListModel<InspectionCodeQuantityBySpecie>
     {
 
+    }
+
+    public class ListLivestockSummary
+    {
+        public int TotalLivestockQuantity { get; set; }
+        public SummaryByStatus SummaryByStatus { get; set; }
+    }
+    
+    public class LivestockQuantityByStatus
+    {
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public livestock_status Status { get; set; }
+        public int Quantitiy { get; set; } = 0;
+        public decimal Ratio { get; set; } = 0;
+    }
+    public class SummaryByStatus : ResponseListModel<LivestockQuantityByStatus>
+    {
+        public decimal TotalRatio { get; set; } = 0;
+    }
+
+    public class UpdateLivestockRequest
+    {
+        public IEnumerable<string> LivestockIds { get; set; } 
+        public string RequestedBy { get; set; } 
     }
 }

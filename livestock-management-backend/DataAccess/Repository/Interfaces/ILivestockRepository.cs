@@ -1,5 +1,6 @@
 ﻿using BusinessObjects.Dtos;
 using BusinessObjects.Models;
+using Microsoft.AspNetCore.Http;
 using static BusinessObjects.Constants.LmsConstants;
 
 namespace DataAccess.Repository.Interfaces
@@ -27,5 +28,25 @@ namespace DataAccess.Repository.Interfaces
         Task<string> GetDiseaseReport();
 
         Task<string> GetWeightBySpecieReport();
+
+        Task<ListLivestockSummary> ListLivestockSummary();
+
+        Task<string> GetListLivestocksReport();
+
+        Task<string> GetRecordLivestockStatusTemplate();
+
+        Task ImportRecordLivestockStatusFile(string requestedBy, IFormFile file);
+
+        Task<int> GetTotalEmptyRecords();
+
+        Task<string> GetEmptyQrCodesFile();
+
+        Task<bool> CreateEmptyLivestockRecords(string requestedBy, int quantity);
+
+        Task<string> GetRecordLivestockStatInformationTemplate();
+
+        Task ImportRecordLivestockInformationFile(string requestedBy, IFormFile file);
+
+        Task ChangeLivestockStatus(string requestedBy, string[] livestockIds, livestock_status status);
     }
 }

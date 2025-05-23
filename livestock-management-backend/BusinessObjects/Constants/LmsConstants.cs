@@ -10,6 +10,7 @@
 
         public enum livestock_status
         {
+            TRỐNG,
             CHỜ_NHẬP,
             CHỜ_ĐỊNH_DANH,
             KHỎE_MẠNH,

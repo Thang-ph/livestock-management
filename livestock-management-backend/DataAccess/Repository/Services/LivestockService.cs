@@ -10,15 +10,17 @@ using System.Drawing;
 using static BusinessObjects.Constants.LmsConstants;
 using ClosedXML;
 using DocumentFormat.OpenXml.Office2010.Excel;
+using Microsoft.AspNetCore.Http;
+using BusinessObjects.ConfigModels;
 
 namespace DataAccess.Repository.Services
 {
     public class LivestockService : ILivestockRepository
     {
         private readonly LmsContext _context;
-        private readonly CloudinaryService _cloudinaryService;
+        private readonly ICloudinaryRepository _cloudinaryService;
 
-        public LivestockService(LmsContext context, CloudinaryService cloudinaryService)
+        public LivestockService(LmsContext context, ICloudinaryRepository cloudinaryService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
@@ -114,6 +116,12 @@ namespace DataAccess.Repository.Services
                 .ToArrayAsync();
             if (livestocks == null || !livestocks.Any())
                 return result;
+
+            var livestockDiseases = await _context.MedicalHistories
+                .Include(o => o.Disease)
+                .Where(o => o.Status == medical_history_status.ĐANG_ĐIỀU_TRỊ)
+                .ToArrayAsync();
+
 
             if (filter != null)
             {
@@ -658,6 +666,129 @@ namespace DataAccess.Repository.Services
         {
             return
                 @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+        }
+
+        public async Task<ListLivestockSummary> ListLivestockSummary()
+        {
+            var result = new ListLivestockSummary
+            {
+                TotalLivestockQuantity = 100,
+                SummaryByStatus = new SummaryByStatus
+                {
+                    Items = new List<LivestockQuantityByStatus>
+                    {
+                        new LivestockQuantityByStatus
+                        {
+                            Status = livestock_status.KHỎE_MẠNH,
+                            Quantitiy = 80,
+                            Ratio = 0.8M
+                        },
+                        new LivestockQuantityByStatus
+                        {
+                            Status = livestock_status.ỐM,
+                            Quantitiy = 20,
+                            Ratio = 0.2M
+                        },
+                    },
+                    Total = 100,
+                    TotalRatio = 1M,
+                }
+            };
+
+            return result;
+        }
+
+        public async Task<string> GetListLivestocksReport()
+        {
+            return
+                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+        }
+
+        public async Task<string> GetRecordLivestockStatusTemplate()
+        {
+            return
+                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+        }
+
+        public async Task ImportRecordLivestockStatusFile(string requestedBy, IFormFile file)
+        {
+            return;
+        }
+
+        public async Task<int> GetTotalEmptyRecords()
+        {
+            var result = await _context.Livestocks
+                .Where(o => string.IsNullOrEmpty(o.InspectionCode)
+                    && string.IsNullOrEmpty(o.SpeciesId)
+                    && o.Status == livestock_status.TRỐNG
+                )
+                .CountAsync();
+
+            return result;
+        }
+
+        public async Task<string> GetEmptyQrCodesFile()
+        {
+            return
+                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+        }
+
+        public async Task<bool> CreateEmptyLivestockRecords(string requestedBy, int quantity)
+        {
+            if (quantity < 0)
+                throw new Exception("Số lượng mã QR cần tạo phải là số tự nhiên lớn hơn 0");
+
+            var barn = await _context.Barns.FirstOrDefaultAsync();
+
+            var newEmptyRecords = new List<Livestock>();
+            for (int i = 0; i < quantity; i++) 
+            {
+                newEmptyRecords.Add(new Livestock
+                {
+                    Id = SlugId.New(),
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
+                    CreatedBy = requestedBy,
+                    UpdatedBy = requestedBy,
+                    Status = livestock_status.TRỐNG,
+                    BarnId = barn?.Id ?? string.Empty
+                });
+            }
+            await _context.Livestocks.AddRangeAsync(newEmptyRecords);   
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<string> GetRecordLivestockStatInformationTemplate()
+        {
+            return
+                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+        }
+
+        public async Task ImportRecordLivestockInformationFile(string requestedBy, IFormFile file)
+        {
+            return;
+        }
+
+        public async Task ChangeLivestockStatus(string requestedBy, string[] livestockIds, livestock_status status)
+        {
+            if (livestockIds == null || !livestockIds.Any()) 
+                return;
+            var livestocks = await _context.Livestocks
+                .Where(o => livestockIds.Contains(o.Id)
+                    && (status == livestock_status.CHẾT || (status == livestock_status.KHỎE_MẠNH && o.Status == livestock_status.ỐM))
+                )
+                .ToArrayAsync();
+            if (!livestocks.Any())
+                return;
+            foreach (var livestock in livestocks)
+            {
+                livestock.Status = status;
+                livestock.UpdatedAt = DateTime.Now;
+                livestock.UpdatedBy = requestedBy;
+            }
+            await _context.SaveChangesAsync();
+            return;
         }
     }
 }

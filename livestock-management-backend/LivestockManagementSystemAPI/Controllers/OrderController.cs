@@ -193,7 +193,7 @@ namespace LivestockManagementSystemAPI.Controllers
         [HttpGet("get-list-orders-to-export")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<ListOrders>> GetListOrderToExport()
+        public async Task<ActionResult<ListOrderExport>> GetListOrderToExport()
         {
             try
             {
@@ -249,7 +249,6 @@ namespace LivestockManagementSystemAPI.Controllers
                                               .SelectMany(x => x.Errors)
                                               .Select(x => x.ErrorMessage)));
                 }
-                //request.RequestedBy = UserId;
                 var data = await _orderRepository.UpdateOrder(orderId, request);
                 return SaveSuccess(data);
             }
@@ -336,6 +335,61 @@ namespace LivestockManagementSystemAPI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError($"[{this.GetType().Name}]/{nameof(AddLivestockToOrder)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpGet("template-to-choose-livestock/{orderId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetTemplateToChooseLivestock([FromRoute] string orderId)
+        {
+            try
+            {
+                var fileUrl = await _orderRepository.GetTemplateToChooseLivestock(orderId);
+                return GetSuccess(fileUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetTemplateToChooseLivestock)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("template-order-report/{orderId}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<string>> GetOrderReportFile([FromRoute] string orderId)
+        {
+            try
+            {
+                var fileUrl = await _orderRepository.GetReportedFile(orderId);
+                return GetSuccess(fileUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetOrderReportFile)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpPost("import-list-chosed-livestock")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> ImportListChosedLivestock([FromForm] string orderId, [FromForm] string requestedBy, IFormFile file)
+        {
+            try
+            {
+                await _orderRepository.ImportListChosedLivestock(orderId, requestedBy, file);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(ImportListChosedLivestock)} " + ex.Message);
                 return SaveError(ex.Message);
             }
         }

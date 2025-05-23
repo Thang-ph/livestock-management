@@ -4,13 +4,16 @@ using BusinessObjects.ConfigModels;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using DataAccess.Repository.Interfaces;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using DocumentFormat.OpenXml.Office2016.Drawing.ChartDrawing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,14 +24,15 @@ namespace DataAccess.Repository.Services
     public class OrderService : IOrderRepository
     {
         private readonly LmsContext _context;
-        private readonly UserManager<IdentityUser> _userManager;
         private readonly IMapper _mapper;
+        private readonly UserManager<IdentityUser> _userManager;
+        private readonly ICloudinaryRepository _cloudinaryService;
 
-        public OrderService(LmsContext context, IMapper mapper, UserManager<IdentityUser> userManager)
+        public OrderService(LmsContext context, IMapper mapper, ICloudinaryRepository cloudinaryService)
         {
-            _userManager = userManager;
             _mapper = mapper;
             _context = context;
+            _cloudinaryService = cloudinaryService;
         }
 
         public async Task<LivestockBatchImportInfo> AddLivestockToOrder(string orderId, AddLivestockToOrderDTO model)
@@ -170,7 +174,7 @@ namespace DataAccess.Repository.Services
 
             await _context.SaveChangesAsync();
 
-            return new LivestockBatchImportInfo 
+            return new LivestockBatchImportInfo
             {
                 Id = model.LivestockId,
                 InspectionCode = livestock.InspectionCode,
@@ -291,7 +295,7 @@ namespace DataAccess.Repository.Services
                 .Where(x => x.OrderId == orderId
                 && x.ExportedDate != null)
                 .CountAsync();
-            if(listOrderDetails + 1 == livestockQuantity)
+            if (listOrderDetails + 1 == livestockQuantity)
             {
                 order.Status = order_status.HOÀN_THÀNH;
                 order.CompletedAt = DateTime.Now;
@@ -305,19 +309,249 @@ namespace DataAccess.Repository.Services
             return true;
         }
 
-        public async Task<Stream> GetReportedFile(string orderId)
+        public async Task<string> GetReportedFile(string orderId)
         {
-            throw new NotImplementedException();
+            var order = await _context.Orders
+    .Include(c => c.Customer)
+    .FirstOrDefaultAsync(x => x.Id == orderId) ??
+   throw new Exception("Không tìm thấy gói thầu");
+
+            var orderRequirement = await _context.OrderRequirements
+                    .Include(s => s.Species)
+                .Where(x => x.OrderId == orderId)
+                .FirstOrDefaultAsync();
+            if (orderRequirement == null)
+                throw new Exception("Không tìm thấy yêu cầu theo đơn này");
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            using var package = new ExcelPackage(new MemoryStream());
+            var worksheet = package.Workbook.Worksheets.Add($"{order.Code}");
+
+            var richTextRow1 = worksheet.Cells["A1"].RichText;
+            var richTextRow2 = worksheet.Cells["A2"].RichText;
+            var richTextRow3 = worksheet.Cells["A3"].RichText;
+            var richTextRow4 = worksheet.Cells["A4"].RichText;
+
+            var boldSegmentRow1 = richTextRow1.Add("Hợp tác xã dịch vụ tổng hợp và SXNN Lúa Vàng");
+            boldSegmentRow1.Bold = false;
+            //richTextRow1.Add($"{order.Code}");
+            var boldSegmentRow2 = richTextRow2.Add("Hồng Giang, Đức Giang, Yên Dũng, Bắc Giang");
+            boldSegmentRow2.Bold = false;
+            //richTextRow2.Add($"{order.Customer.Fullname}");
+            var boldSegmentRow3 = richTextRow3.Add("BẢNG KÊ XUẤT HÀNG");
+            boldSegmentRow3.Bold = true;
+            boldSegmentRow3.Size = 16;
+            var boldSegmentRow4 = richTextRow4.Add("Loại vật nuôi: ");
+            //boldSegmentRow4.Bold = true;
+            //richTextRow4.Add($"{orderRequirement.Species.Name]}");
+
+            //worksheet.Cells["A5"].Value = $"DANH SÁCH LỰA CHỌN NGHIỆM THU ĐÁNH GIÁ CHẤT LƯỢNG ";
+            //worksheet.Cells["A5"].Style.Font.Bold = true;
+
+            //var columns = new string[] { "Tên", "Địa chỉ", "Số điện thoại", "Ghi chú", "Số lượng" };
+            //var data = new DataTable();
+            //data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+
+            //worksheet.Cells["A6"].LoadFromDataTable(data, true, TableStyles.Light1);
+            //worksheet.Column(3).Style.Numberformat.Format = "@";
+            //worksheet.Column(5).Style.Numberformat.Format = "@";
+
+            using var stream = new MemoryStream();
+            await package.SaveAsAsync(stream);
+            stream.Position = 0; // Quan trọng: reset vị trí về đầu stream
+
+            var fileUrl = await _cloudinaryService.UploadFileStreamAsync(stream, "Thong_tin_don_ban_" + DateTime.Now.ToString("ddMMyyyy") + ".xlsx");
+            return fileUrl;
         }
 
-        public async Task<Stream> GetTemplateListLivestock(string orderId)
+        public async Task<string> GetTemplateToChooseLivestock(string orderId)
         {
-            throw new NotImplementedException();
+            var order = await _context.Orders
+                .Include(c => c.Customer)
+                .FirstOrDefaultAsync(x => x.Id == orderId) ??
+               throw new Exception("Không tìm thấy gói thầu");
+
+            var orderRequirement = await _context.OrderRequirements
+                    .Include(s => s.Species)
+                .Where(x => x.OrderId == orderId)
+                .FirstOrDefaultAsync();
+            if (orderRequirement == null)
+                throw new Exception("Không tìm thấy yêu cầu theo đơn này");
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            using var package = new ExcelPackage(new MemoryStream());
+            var worksheet = package.Workbook.Worksheets.Add($"{order.Code}");
+
+            var richTextRow1 = worksheet.Cells["A1"].RichText;
+            var richTextRow2 = worksheet.Cells["A2"].RichText;
+            var richTextRow3 = worksheet.Cells["A3"].RichText;
+            var richTextRow4 = worksheet.Cells["A4"].RichText;
+
+            var boldSegmentRow1 = richTextRow1.Add("Hợp tác xã dịch vụ tổng hợp và SXNN Lúa Vàng");
+            boldSegmentRow1.Bold = false;
+            //richTextRow1.Add($"{order.Code}");
+            var boldSegmentRow2 = richTextRow2.Add("Hồng Giang, Đức Giang, Yên Dũng, Bắc Giang");
+            boldSegmentRow2.Bold = false;
+            //richTextRow2.Add($"{order.Customer.Fullname}");
+            var boldSegmentRow3 = richTextRow3.Add("BẢNG KÊ XUẤT HÀNG");
+            boldSegmentRow3.Bold = true;
+            boldSegmentRow3.Size = 16;
+            var boldSegmentRow4 = richTextRow4.Add("Loại vật nuôi: ");
+            //boldSegmentRow4.Bold = true;
+            //richTextRow4.Add($"{orderRequirement.Species.Name]}");
+
+            //worksheet.Cells["A5"].Value = $"DANH SÁCH LỰA CHỌN NGHIỆM THU ĐÁNH GIÁ CHẤT LƯỢNG ";
+            //worksheet.Cells["A5"].Style.Font.Bold = true;
+
+            //var columns = new string[] { "Tên", "Địa chỉ", "Số điện thoại", "Ghi chú", "Số lượng" };
+            //var data = new DataTable();
+            //data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+
+            //worksheet.Cells["A6"].LoadFromDataTable(data, true, TableStyles.Light1);
+            //worksheet.Column(3).Style.Numberformat.Format = "@";
+            //worksheet.Column(5).Style.Numberformat.Format = "@";
+
+            using var stream = new MemoryStream();
+            await package.SaveAsAsync(stream);
+            stream.Position = 0; // Quan trọng: reset vị trí về đầu stream
+
+            var fileUrl = await _cloudinaryService.UploadFileStreamAsync(stream, "Mau_chon_vat_nuoi_" + DateTime.Now.ToString("ddMMyyyy") + ".xlsx");
+            return fileUrl;
         }
 
-        public async Task ImportExcelfile(string orderId, string requestedBy, IFormFile file)
+        public async Task ImportListChosedLivestock(string orderId, string requestedBy, IFormFile file)
         {
-            throw new NotImplementedException();
+            var procurementPackage = await _context.ProcurementPackages.FindAsync(orderId) ??
+                throw new Exception("Không tìm thấy gói thầu");
+
+            //remove existing list customers if possible
+            var currentListExports = await _context.BatchExports
+                .Where(o => o.ProcurementPackageId == orderId)
+                .ToArrayAsync();
+            if (currentListExports != null && currentListExports.Any())
+            {
+                var currentExportDetails = await _context.BatchExportDetails
+                    .Where(o => currentListExports.Select(x => x.Id).Contains(o.BatchExportId))
+                    .ToArrayAsync();
+                if (currentExportDetails != null && currentExportDetails.Any())
+                    throw new Exception("Gói thầu đang trong quá trình bàn giao, không thể tải thêm danh sách khách hàng");
+                _context.BatchExports.RemoveRange(currentListExports);
+                await _context.SaveChangesAsync();
+            }
+
+            var listCustomers = new List<BatchExport>();
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            if (file == null || file.Length <= 0)
+                throw new Exception("Không tìm thấy file");
+
+            using (var stream = new MemoryStream())
+            {
+                await file.CopyToAsync(stream);
+                stream.Position = 0;
+
+                using (var package = new ExcelPackage(stream))
+                {
+                    var worksheet = package.Workbook.Worksheets[0];
+
+                    int rowCount = worksheet.Dimension.Rows;
+                    int colCount = worksheet.Dimension.Columns;
+
+                    //validate procurement package info
+                    var procurementCodeStr = worksheet.Cells["A1"].Value?.ToString();
+                    if (string.IsNullOrEmpty(procurementCodeStr))
+                        throw new Exception("Mã gói thầu không hợp lệ");
+                    var code = procurementCodeStr.Trim().Split(":").Last();
+                    if (string.IsNullOrEmpty(code))
+                        throw new Exception("Mã gói thầu không hợp lệ");
+                    if (procurementPackage.Code.ToUpper() != code.Trim().ToUpper())
+                        throw new Exception($"Không tìm thấy mã gói thầu {code}");
+
+                    //validate column headers list customers
+                    var requiredColumns = new string[] {
+                        "tên",
+                        "địa chỉ",
+                        "số điện thoại",
+                        "ghi chú",
+                        "số lượng",
+                    };
+                    var dicColumnIndexes = requiredColumns
+                        .Select(o => new
+                        {
+                            o,
+                            index = (int)0
+                        })
+                        .ToDictionary(o => o.o, o => o.index);
+                    for (var i = 1; i <= colCount; i++)
+                    {
+                        var columnHeader = worksheet.Cells[6, i].Value?.ToString();
+                        if (string.IsNullOrEmpty(columnHeader))
+                            throw new Exception($"Trống tên cột ở ô [6:{i}]");
+                        columnHeader = columnHeader.Trim().ToLower();
+                        if (!dicColumnIndexes.ContainsKey(columnHeader))
+                            throw new Exception($"Tên cột không hợp lệ ở ô [6:{i}]");
+                        dicColumnIndexes[columnHeader] = i;
+                    }
+
+                    //read value
+                    var idxName = dicColumnIndexes["tên"];
+                    var idxAddress = dicColumnIndexes["địa chỉ"];
+                    var idxPhone = dicColumnIndexes["số điện thoại"];
+                    var idxNote = dicColumnIndexes["ghi chú"];
+                    var idxQuantity = dicColumnIndexes["số lượng"];
+                    for (int row = 7; row <= rowCount; row++)
+                    {
+                        var customerName = worksheet.Cells[row, idxName].Value?.ToString();
+                        if (string.IsNullOrEmpty(customerName))
+                            throw new Exception($"Trống tên khách hàng ở ô [{row}:{idxName}]");
+
+                        var customerAddress = worksheet.Cells[row, idxAddress].Value?.ToString();
+                        var customerPhone = worksheet.Cells[row, idxPhone].Value?.ToString();
+                        var customerNote = worksheet.Cells[row, idxNote].Value?.ToString();
+                        if (string.IsNullOrEmpty(customerAddress)
+                            && string.IsNullOrEmpty(customerPhone)
+                            && string.IsNullOrEmpty(customerNote))
+                            throw new Exception($"Ít nhất 1 trong 3 mục địa chỉ, số điện thoại, ghi chú không trống ở dòng [{row}]");
+
+                        int quantity = -1;
+                        var strQuantity = worksheet.Cells[row, idxQuantity].Value?.ToString();
+                        if (string.IsNullOrEmpty(strQuantity))
+                            throw new Exception($"Trống số lượng ở ô [{row}:{idxQuantity}]");
+                        var isInteger = Int32.TryParse(strQuantity.Trim(), out quantity);
+                        if (!isInteger)
+                            throw new Exception($"Số lượng không hợp lệ ở ô [{row}:{idxQuantity}]");
+                        if (quantity < 0)
+                            throw new Exception($"Số lượng không được bé hơn 0 ở ô [{row}:{idxQuantity}]");
+
+                        listCustomers.Add(new BatchExport
+                        {
+                            Id = SlugId.New(),
+                            CreatedAt = DateTime.Now,
+                            CreatedBy = string.IsNullOrEmpty(requestedBy) ? "SYS" : requestedBy,
+                            UpdatedAt = DateTime.Now,
+                            UpdatedBy = string.IsNullOrEmpty(requestedBy) ? "SYS" : requestedBy,
+                            BarnId = null,
+                            ProcurementPackageId = procurementPackage.Id,
+                            Status = batch_export_status.CHỜ_BÀN_GIAO,
+                            CustomerName = customerName.Trim(),
+                            CustomerAddress = string.IsNullOrEmpty(customerAddress) ?
+                                null : customerAddress.Trim(),
+                            CustomerPhone = string.IsNullOrEmpty(customerPhone) ?
+                                null : customerPhone.Trim(),
+                            CustomerNote = string.IsNullOrEmpty(customerNote) ?
+                                null : customerNote.Trim(),
+                            Total = quantity,
+                            Remaining = quantity
+                        });
+                    }
+                }
+
+            }
+
+            await _context.BatchExports.AddRangeAsync(listCustomers);
+            await _context.SaveChangesAsync();
+
+            return;
         }
         public async Task<bool> RemoveRequestChoose(string orderId)
         {
@@ -413,7 +647,7 @@ namespace DataAccess.Repository.Services
             var order = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderId);
             if (order == null)
                 throw new Exception("Không tìm thấy đơn bán");
-            
+
             var orderDetails = await _context.OrderDetails
                 .Include(l => l.Livestock)
                     .ThenInclude(s => s.Species)
@@ -425,7 +659,7 @@ namespace DataAccess.Repository.Services
                 Total = 0
             };
 
-            if(filter != null)
+            if (filter != null)
             {
                 if (!string.IsNullOrEmpty(filter.Keyword))
                 {
@@ -492,8 +726,7 @@ namespace DataAccess.Repository.Services
                         .Sum(x => (int?)x.Quantity) ?? 0,
 
                     Received = _context.OrderDetails
-                        .Where(x => x.OrderId == v.Id
-                        && x.ExportedDate != null).Count(),
+                        .Where(x => x.OrderId == v.Id).Count(),
                     Type = v.Type,
                     Status = v.Status,
                     CreatedAt = v.CreatedAt
@@ -503,14 +736,14 @@ namespace DataAccess.Repository.Services
             result.Total = data.Length;
             return result;
         }
-        public async Task<ListOrders> GetListOrderToExport()
+        public async Task<ListOrderExport> GetListOrderToExport()
         {
             var data = await _context.Orders
                  .Include(c => c.Customer)
                  .Where(x => x.Type == order_type.YÊU_CẦU_XUẤT)
                  .ToArrayAsync();
 
-            var result = new ListOrders()
+            var result = new ListOrderExport()
             {
                 Total = 0
             };
@@ -523,19 +756,22 @@ namespace DataAccess.Repository.Services
                 .ToArray();
 
             result.Items = data
-                .Select(v => new OrderSummary
+                .Select(v => new OrderExport
                 {
                     Id = v.Id,
                     Code = v.Code,
                     CustomerName = v.Customer.Fullname,
                     PhoneNumber = v.Customer.Phone,
-                    Total = _context.OrderRequirements
-                        .Where(o => o.OrderId == v.Id)
-                        .Sum(x => (int?)x.Quantity) ?? 0,
+                    Total = _context.OrderDetails
+                        .Where(x => x.OrderId == v.Id).Count(),
 
                     Received = _context.OrderDetails
                         .Where(x => x.OrderId == v.Id
                         && x.ExportedDate != null).Count(),
+
+                    ExportCount = _context.OrderDetails
+                        .Where(x => x.OrderId == v.Id
+                        && x.ExportedDate == null).Count(),
                     Type = v.Type,
                     Status = v.Status,
                     CreatedAt = v.CreatedAt
@@ -842,8 +1078,12 @@ namespace DataAccess.Repository.Services
             //Update Customer
             customer.Fullname = updateOrder.CustomerName;
             customer.Phone = updateOrder.Phone;
-            customer.Address = updateOrder.Addrress;
-            customer.Email = updateOrder.Email;
+            if (updateOrder.Addrress != null)
+                customer.Address = updateOrder.Addrress;
+
+            if (updateOrder.Email != null)
+                customer.Email = updateOrder.Email;
+
             customer.UpdatedAt = DateTime.Now;
             customer.UpdatedBy = updateOrder.RequestedBy ?? "SYS";
 
@@ -866,19 +1106,32 @@ namespace DataAccess.Repository.Services
                 orderRequirement.UpdatedAt = DateTime.Now;
                 orderRequirement.UpdatedBy = updateOrder.RequestedBy ?? "SYS";
 
-                //Update VaccinationRequirement
-                if (detail.VaccintionRequirement != null)
+                // Xóa các bản ghi VaccinationRequirement cũ nếu không có yêu cầu mới
+                var existingVaccines = await _context.VaccinationRequirement
+                    .Where(v => v.OrderRequirementId == orderRequirement.Id)
+                    .ToArrayAsync();
+
+                if (detail.VaccintionRequirement == null || !detail.VaccintionRequirement.Any())
                 {
+                    _context.VaccinationRequirement.RemoveRange(existingVaccines);
+                }
+                else
+                {
+                    _context.VaccinationRequirement.RemoveRange(existingVaccines);
+
                     foreach (var insurance in detail.VaccintionRequirement)
                     {
-                        var vaccinationRequirement = await _context.VaccinationRequirement.FirstOrDefaultAsync(x => x.Id == insurance.Id);
-                        if (vaccinationRequirement == null)
-                            throw new Exception("Không tìm thấy thông tin bảo hành");
+                        var vaccinationRequirement = new VaccinationRequirement
+                        {
+                            Id = SlugId.New(),
+                            OrderRequirementId = orderRequirement.Id,
+                            DiseaseId = insurance.DiseaseId,
+                            InsuranceDuration = insurance.InsuranceDuration ?? 21,
+                            UpdatedAt = DateTime.Now,
+                            UpdatedBy = updateOrder.RequestedBy ?? "SYS"
+                        };
 
-                        vaccinationRequirement.DiseaseId = insurance.DiseaseId;
-                        vaccinationRequirement.InsuranceDuration = insurance.InsuranceDuration ?? 21;
-                        vaccinationRequirement.UpdatedAt = DateTime.Now;
-                        vaccinationRequirement.UpdatedBy = updateOrder.RequestedBy;
+                        await _context.VaccinationRequirement.AddAsync(vaccinationRequirement);
                     }
                 }
             }
