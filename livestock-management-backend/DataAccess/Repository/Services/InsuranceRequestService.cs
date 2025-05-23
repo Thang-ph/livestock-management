@@ -195,9 +195,38 @@ namespace DataAccess.Repository.Services
             }
         }
 
-        public Task<InsurenceRequestDTO> CreateInsurenceRequestWithScan(CreateInsurenceQrDTO createDto)
+        public async Task<CreateInsurenceDTO> CreateInsurenceRequestWithScan(CreateInsurenceQrDTO createDto)
         {
-            throw new NotImplementedException();
+            CreateInsurenceDTO data = new CreateInsurenceDTO();
+            var livestock = await _context.Livestocks.Where(x => x.Id.Equals(createDto.LivestockId)).FirstOrDefaultAsync();
+            if (livestock == null)
+            {
+                throw new Exception("Mã QR không chính xác, vui lòng thử lại!");
+            }
+            if (!livestock.Status.Equals(livestock_status.ĐÃ_XUẤT))
+            {
+                throw new Exception("Vật nuôi này chưa xuất chuồng!");
+            }
+            data.SpecieId = livestock.SpeciesId;
+            data.LivestockInspectionCode = livestock.InspectionCode;
+            var procurmentDetail = await _context.LivestockProcurements.Where( x => x.LivestockId.Equals(createDto.LivestockId)).Include(x => x.ProcurementPackage).FirstOrDefaultAsync();
+            if (procurmentDetail != null)
+            {
+                data.Type = "0";
+            }
+            else
+            {
+                var orderDetail = await _context.OrderDetails.Where(x => x.LivestockId.Equals(createDto.LivestockId)).Include(x => x.Order).FirstOrDefaultAsync();
+                if (orderDetail != null)
+                {
+                    data.Type = "1";
+                }
+                else
+                {
+                    throw new Exception("Vật nuôi này chưa có trong gói thầu nào");
+                }
+            }
+            return data;
         }
 
         public ListInsuranceStatusDTO GetAllStatusInsurence()

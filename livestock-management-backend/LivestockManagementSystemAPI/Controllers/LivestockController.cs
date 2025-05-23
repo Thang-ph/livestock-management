@@ -643,6 +643,70 @@ namespace LivestockManagementSystemAPI.Controllers
                 return SaveError(ex.Message);
             }
         }
+
+        [HttpGet("get-livestock-details")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<LivestockDetails>> GetLivestockDetails([FromQuery] GetLivestockDetailsRequest request)
+        {
+            try
+            {
+                var data = await _livestockRepository.GetLivestockDetails(request);
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetLivestockDetails)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpPost("update-livestock-details")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> UpdateLivestockDetails([FromBody] UpdateLivestockDetailsRequest request)
+        {
+            try
+            {
+                if (request == null)
+                    throw new ArgumentNullException(nameof(request));
+                if (string.IsNullOrEmpty(request.RequestedBy))
+                    request.RequestedBy = UserId;
+                await _livestockRepository.UpdateLivestockDetails(request);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(UpdateLivestockDetails)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpPost("record-livestock-diseases")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> RecordLivestockDiseases([FromBody] RecordLivstockDiseases request)
+        {
+            try
+            {
+                if (request == null)
+                    throw new ArgumentNullException(nameof(request));
+                if (string.IsNullOrEmpty(request.RequestedBy))
+                    request.RequestedBy = UserId;
+                await _livestockRepository.RecordLivestockDiseases(request);
+                return SaveSuccess(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(RecordLivestockDiseases)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
     }
 }
 

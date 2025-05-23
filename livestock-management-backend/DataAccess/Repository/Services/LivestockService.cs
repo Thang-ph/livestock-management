@@ -1,17 +1,15 @@
-﻿using BusinessObjects;
+﻿using System.Drawing;
+using System.Drawing.Imaging;
+using BusinessObjects;
+using BusinessObjects.ConfigModels;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using ClosedXML.Excel;
 using DataAccess.Repository.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using QRCoder;
-using System.Drawing.Imaging;
-using System.Drawing;
 using static BusinessObjects.Constants.LmsConstants;
-using ClosedXML;
-using DocumentFormat.OpenXml.Office2010.Excel;
-using Microsoft.AspNetCore.Http;
-using BusinessObjects.ConfigModels;
 
 namespace DataAccess.Repository.Services
 {
@@ -58,15 +56,15 @@ namespace DataAccess.Repository.Services
                 headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
                 int qrSize = 300;
-                ws.Column(2).Width = qrSize *0.75;
+                ws.Column(2).Width = qrSize * 0.75;
 
                 int row = 2;
                 int stt = 1;
                 foreach (var item in listLivestock)
                 {
-                    ws.Cell(row, 1).Value = stt;   
+                    ws.Cell(row, 1).Value = stt;
 
-                    byte[] qrBytes = GenerateQRCode(urlDeploy+item.Id.ToString());
+                    byte[] qrBytes = GenerateQRCode(urlDeploy + item.Id.ToString());
 
                     if (qrBytes != null)
                     {
@@ -81,7 +79,7 @@ namespace DataAccess.Repository.Services
 
                                     var qrPic = ws.AddPicture(imgStream)
                                                   .MoveTo(ws.Cell(row, 2))
-                                                  .WithSize(qrSize, qrSize);  
+                                                  .WithSize(qrSize, qrSize);
 
                                     ws.Row(row).Height = qrSize * 0.75;
                                 }
@@ -90,7 +88,7 @@ namespace DataAccess.Repository.Services
                     }
 
                     row++;
-                    stt++; 
+                    stt++;
                 }
 
                 ws.Columns(1, 2).AdjustToContents();
@@ -98,7 +96,7 @@ namespace DataAccess.Repository.Services
                 using (var ms = new MemoryStream())
                 {
                     wb.SaveAs(ms);
-                    return ms.ToArray(); 
+                    return ms.ToArray();
                 }
             }
         }
@@ -215,7 +213,7 @@ namespace DataAccess.Repository.Services
 
         public async Task<LivestockSicknessHistory> GetLivestockSicknessHistory(string id)
         {
-           
+
 
             var livestock = await _context.Livestocks
                 .Where(o => o.Id == id)
@@ -226,7 +224,7 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Không tìm thấy vật nuôi");
             }
 
-            var listHistory = await _context.MedicalHistories.Include(x=>x.Medicine).Include(x=>x.Disease)
+            var listHistory = await _context.MedicalHistories.Include(x => x.Medicine).Include(x => x.Disease)
                 .Where(x => x.LivestockId == id)
                 .ToListAsync();
 
@@ -234,7 +232,7 @@ namespace DataAccess.Repository.Services
             {
                 Symptom = x.Symptom,
                 Disease = x.Disease.Name,
-                dateOfRecord = x.CreatedAt, 
+                dateOfRecord = x.CreatedAt,
                 MedicineName = x.Medicine.Name,
                 Status = x.Status
             }).ToList();
@@ -285,7 +283,7 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Livestock not found");
             }
 
-            var vaccinationHistory = await _context.LivestockVaccinations.Include(x=>x.BatchVaccination).ThenInclude(x=>x.Vaccine)
+            var vaccinationHistory = await _context.LivestockVaccinations.Include(x => x.BatchVaccination).ThenInclude(x => x.Vaccine)
                 .Where(v => v.LivestockId == id)
                 .Select(v => new LivestockVaccinationDetail
                 {
@@ -312,7 +310,7 @@ namespace DataAccess.Repository.Services
                 .FirstOrDefaultAsync(x => x.InspectionCode == model.InspectionCode
                 && x.Species.Type == model.SpecieType);
             if (livestock == null)
-                throw new Exception("Không tìm thấy id cho loài "+ model.SpecieType);
+                throw new Exception("Không tìm thấy id cho loài " + model.SpecieType);
 
             var result = new LivestockSummary
             {
@@ -335,8 +333,8 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Inspection code id is missing");
             }
 
-            var livestock = await _context.Livestocks.Include(x=>x.Species)
-                .Where(o => o.InspectionCode == inspectionCode && o.Species.Type== specieType)
+            var livestock = await _context.Livestocks.Include(x => x.Species)
+                .Where(o => o.InspectionCode == inspectionCode && o.Species.Type == specieType)
                 .FirstOrDefaultAsync();
             if (livestock == null)
             {
@@ -463,8 +461,8 @@ namespace DataAccess.Repository.Services
                 },
                 SpecieRatioSummary = new SpecieRatioSummary
                 {
-                    Items = new List<SpecieRatio> 
-                    { 
+                    Items = new List<SpecieRatio>
+                    {
                         new SpecieRatio
                         {
                             SpecieId = "1",
@@ -509,8 +507,8 @@ namespace DataAccess.Repository.Services
                     },
                     Total = 100
                 },
-                WeightRatioSummary = new WeightRatioSummary 
-                { 
+                WeightRatioSummary = new WeightRatioSummary
+                {
                     Items = new List<WeightRatioBySpecie>
                     {
                         new WeightRatioBySpecie
@@ -658,7 +656,7 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetDiseaseReport()
         {
-            return 
+            return
                 @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
         }
 
@@ -741,7 +739,7 @@ namespace DataAccess.Repository.Services
             var barn = await _context.Barns.FirstOrDefaultAsync();
 
             var newEmptyRecords = new List<Livestock>();
-            for (int i = 0; i < quantity; i++) 
+            for (int i = 0; i < quantity; i++)
             {
                 newEmptyRecords.Add(new Livestock
                 {
@@ -754,7 +752,7 @@ namespace DataAccess.Repository.Services
                     BarnId = barn?.Id ?? string.Empty
                 });
             }
-            await _context.Livestocks.AddRangeAsync(newEmptyRecords);   
+            await _context.Livestocks.AddRangeAsync(newEmptyRecords);
             await _context.SaveChangesAsync();
             return true;
         }
@@ -772,7 +770,7 @@ namespace DataAccess.Repository.Services
 
         public async Task ChangeLivestockStatus(string requestedBy, string[] livestockIds, livestock_status status)
         {
-            if (livestockIds == null || !livestockIds.Any()) 
+            if (livestockIds == null || !livestockIds.Any())
                 return;
             var livestocks = await _context.Livestocks
                 .Where(o => livestockIds.Contains(o.Id)
@@ -788,6 +786,60 @@ namespace DataAccess.Repository.Services
                 livestock.UpdatedBy = requestedBy;
             }
             await _context.SaveChangesAsync();
+            return;
+        }
+
+        public async Task<LivestockDetails> GetLivestockDetails(GetLivestockDetailsRequest request)
+        {
+            var livestock = new LivestockDetails
+            {
+                LivestockId = "1",
+                InspectionCode = "000111",
+                SpecieId = "1",
+                SpecieName = "Bò lai Sind cái",
+                LivestockStatus = livestock_status.ỐM,
+                Weight = 450.5m,
+                Origin = "Việt Nam",
+                BarnId = "BARN001",
+                BarnName = "Hợp tác xã Lúa Vàng",
+                ImportDate = new DateTime(2024, 10, 15),
+                ImportWeight = 430.0m,
+                ExportDate = new DateTime(2025, 4, 20),
+                ExportWeight = 470.0m,
+                LastUpdatedAt = DateTime.UtcNow,
+                LastUpdatedBy = "Kim Văn Dự",
+                LivestockVaccinatedDiseases = new List<LivestockVaccinatedDisease>
+                {
+                    new LivestockVaccinatedDisease
+                    {
+                        DiseaseId = "D001",
+                        DiseaseName = "Lở mồm long móng",
+                        LastVaccinatedAt = new DateTime(2024, 11, 10)
+                    }
+                },
+                LivestockCurrentDiseases = new List<LivestockCurrentDisease>
+                {
+                    new LivestockCurrentDisease
+                    {
+                        DiseaseId = "D002",
+                        DiseaseName = "Đau mắt",
+                        Status = medical_history_status.ĐANG_ĐIỀU_TRỊ,
+                        StartDate = new DateTime(2025, 1, 5),
+                        EndDate = null
+                    }
+                }
+            };
+
+            return livestock;
+        }
+
+        public async Task UpdateLivestockDetails(UpdateLivestockDetailsRequest request)
+        {
+            return;
+        }
+
+        public async Task RecordLivestockDiseases(RecordLivstockDiseases request)
+        {
             return;
         }
     }

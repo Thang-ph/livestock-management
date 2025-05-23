@@ -48,5 +48,11 @@ namespace DataAccess.Repository.Interfaces
         Task ImportRecordLivestockInformationFile(string requestedBy, IFormFile file);
 
         Task ChangeLivestockStatus(string requestedBy, string[] livestockIds, livestock_status status);
+
+        Task<LivestockDetails> GetLivestockDetails(GetLivestockDetailsRequest request);
+
+        Task UpdateLivestockDetails(UpdateLivestockDetailsRequest request);
+
+        Task RecordLivestockDiseases(RecordLivstockDiseases request);
     }
 }

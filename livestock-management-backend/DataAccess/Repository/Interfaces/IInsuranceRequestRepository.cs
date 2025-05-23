@@ -16,7 +16,7 @@ namespace DataAccess.Repository.Interfaces
         Task<InsurenceRequestDTO> CreateInsurenceRequest(CreateInsurenceDTO createDto);
         ListInsuranceStatusDTO GetAllStatusInsurence();
         Task<InsurenceRequestDTO> ChangeStatusInsurance(ChangeStatusInsuranceDto insuranceDto);
-        Task<InsurenceRequestDTO> CreateInsurenceRequestWithScan(CreateInsurenceQrDTO createDto);
+        Task<CreateInsurenceDTO> CreateInsurenceRequestWithScan(CreateInsurenceQrDTO createDto);
         Task<InsurenceRequestDTO> UpdateNewLivestockInsurenceRequest(UpdateInsuranceLivestockDto updateDto);
         Task<InsurenceRequestDTO> RemoveNewLivestockInsuranceRequest(RemoveInsuranceLivestockDto updateDto);
         Task<InsurenceRequestDTO> UpdateInfoInsuranceRequest(UpdateInsuranceRequestInfoDto updateDto);

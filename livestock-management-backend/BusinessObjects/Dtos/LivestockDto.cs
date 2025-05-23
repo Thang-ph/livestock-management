@@ -328,4 +328,74 @@ namespace BusinessObjects.Dtos
         public IEnumerable<string> LivestockIds { get; set; } 
         public string RequestedBy { get; set; } 
     }
+
+    public class UpdateLivestockDetailsRequest
+    {
+        public string? LivestockId { get; set; }
+        public string? InspectionCode { get; set; }
+        public string? SpecieId { get; set; }
+        public string RequestedBy { get; set; }
+        public string? Color { get; set; }
+        public decimal? Weight { get; set; }
+        public string? Origin { get; set; }
+    }
+
+    public class GetLivestockDetailsRequest
+    {
+        public string? LivestockId { get; set; }
+        public string? InspectionCode { get; set; }
+        public string? SpecieId { get; set; }
+    }
+
+    public class LivestockDetails
+    {
+        public string LivestockId { get; set; }
+        public string InspectionCode { get; set; }
+        public string SpecieId { get; set; }
+        public string SpecieName { get; set; }
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public livestock_status LivestockStatus { get; set; }
+        public decimal? Weight { get; set; }
+        public string? Origin { get; set; }
+        public string? BarnId { get; set; }
+        public string? BarnName { get; set; }
+        public DateTime? ImportDate { get; set; }
+        public decimal? ImportWeight { get; set; }
+        public DateTime? ExportDate { get; set; }
+        public decimal? ExportWeight { get; set; }
+        public DateTime? LastUpdatedAt { get; set; }
+        public string? LastUpdatedBy { get; set; }
+        public IEnumerable<LivestockVaccinatedDisease>? LivestockVaccinatedDiseases { get; set; } 
+        public IEnumerable<LivestockCurrentDisease>? LivestockCurrentDiseases { get; set; } 
+    }
+
+    public class LivestockVaccinatedDisease
+    {
+        public string DiseaseId { get; set; }
+        public string DiseaseName { get; set; }
+        public DateTime LastVaccinatedAt { get; set; }
+    }
+
+    public class LivestockCurrentDisease
+    {
+        public string DiseaseId { get; set; }
+        public string DiseaseName { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public medical_history_status Status { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+    }
+
+    public class RecordLivstockDiseases
+    {
+        public string? LivestockId { get; set; }
+        public string? InspectionCode { get; set; }
+        public string? SpecieId { get; set; }
+        public IEnumerable<string> DiseaseIds { get; set; }
+        public string? Symptoms { get; set; }
+        public IEnumerable<string>? MedicineIds { get; set; }
+
+        public string RequestedBy { get; set; }
+    }
 }
