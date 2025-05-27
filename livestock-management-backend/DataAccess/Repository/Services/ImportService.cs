@@ -826,7 +826,7 @@ public class ImportService : IImportRepository
             && x.ExpectedCompletionDate != null
             && x.CompletionDate == null
             && x.Status != batch_import_status.HOÀN_THÀNH
-            || x.Status != batch_import_status.ĐÃ_HỦY
+            && x.Status != batch_import_status.ĐÃ_HỦY
             && !_context.PinnedBatchImports.Any(p => p.BatchImportId == x.Id))
             .ToArrayAsync();
 
@@ -1129,7 +1129,7 @@ public class ImportService : IImportRepository
             SpecieName = specie.Name,
             Gender = livestock.Gender,
             Color = livestock.Color,
-            Weight = livestock.WeightEstimate,
+            Weight = livestock.WeightOrigin,
             Dob = livestock.Dob,
             CreatedAt = batchImportDetails.CreatedAt,
             Total = totalLivestockInBatch,

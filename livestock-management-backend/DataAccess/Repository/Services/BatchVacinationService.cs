@@ -788,13 +788,25 @@ namespace DataAccess.Repository.Services
                 .ToList();
                 foreach (VaccinationRequirement vaccinationRequirement in distinctRequirements)
                 {
-                                var count = livestockVaccinations
-                .Where(x => x.BatchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault().DiseaseId == vaccinationRequirement.Disease.Id &&
-                            x.CreatedAt > DateTime.Now.AddDays(-21))
-                .Select(x => x.LivestockId)
-                .Distinct()
-                .Count();
+                    List<SingleVaccination> singleVaccinationList = _context.SingleVaccination.Include(x => x.Medicine).ThenInclude(x => x.DiseaseMedicines).ThenInclude(x => x.Disease)
+                        .Where(x => x.Medicine.DiseaseMedicines.FirstOrDefault().Disease.Id == vaccinationRequirement.Disease.Id&& x.CreatedAt > DateTime.Now.AddDays(-21)).ToList();
 
+                    var diseaseVaccinations = livestockVaccinations
+.Where(x => x.BatchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault()?.DiseaseId == vaccinationRequirement.Disease.Id);
+
+                    var recentDiseaseVaccinations = diseaseVaccinations
+                        .Where(x => x.CreatedAt > DateTime.Now.AddDays(-21));
+
+                    var count = recentDiseaseVaccinations
+                        .Select(x => x.LivestockId)
+                        .Distinct()
+                        .Count();
+
+     //               var count = recentDiseaseVaccinations
+     //.Select(x => x.LivestockId)
+     //.Concat(singleVaccinationList.Select(x => x.LivestockId))
+     //.Distinct()
+     //.Count();
                     DiseaseRequire diseaseRequire = new DiseaseRequire
                     {
                         HasDone = count,
@@ -1243,10 +1255,10 @@ namespace DataAccess.Repository.Services
             }
             List<LivestockVaccination> existLivestock = _context.LivestockVaccinations.Include(x=>x.Livestock)
                 .ThenInclude(x=>x.Species).Where(x => x.Livestock.InspectionCode == livestockVaccinationAddByInspectionCode.InspectionCoded && x.Livestock.Species.Type == livestockVaccinationAddByInspectionCode.Specie_Type).ToList();
-            if (existLivestock.Any())
-            {
-                throw new Exception("Vật nuôi đã thuộc 1 lô tiêm khác");
-            }
+            //if (existLivestock.Any())
+            //{
+            //    throw new Exception("Vật nuôi đã thuộc 1 lô tiêm khác");
+            //}
             _context.BatchVaccinations
     .Where(x => x.Id == livestockVaccinationAddByInspectionCode.BatchVaccinationId)
     .ExecuteUpdateAsync(x => x.SetProperty(b => b.Status, batch_vaccination_status.ĐANG_THỰC_HIỆN));
@@ -1298,6 +1310,47 @@ namespace DataAccess.Repository.Services
            await _context.AddAsync(singleVaccination);
             await _context.SaveChangesAsync();
             return singleVaccinationCreate;
+        }
+
+        public async Task<SingleVaccinationCreateByInspection> AddLivestockVaccinationToSingleVaccinationByInspectionCode(SingleVaccinationCreateByInspection singleVaccinationCreate)
+        {
+            if (!String.IsNullOrEmpty(singleVaccinationCreate.BatchImportId))
+            {
+                BatchImport batchImport = _context.BatchImports.FirstOrDefault(x => x.Id == singleVaccinationCreate.BatchImportId);
+                if (batchImport == null)
+                {
+                    throw new Exception("Không tìm thấy lô nhập này");
+                }
+            }
+            var livestock = _context.Livestocks.Include(x => x.Species).FirstOrDefault(x => x.InspectionCode == singleVaccinationCreate.InspectionCode && x.Species.Type == singleVaccinationCreate.SpecieType);
+            if (livestock != null)
+            {
+                if (_context.Medicines.FirstOrDefault(x => x.Id == singleVaccinationCreate.MedicineId) == null)
+                {
+                    throw new Exception("Thuốc này không tồn tại");
+                }
+                if (_userManager.Users.FirstOrDefault(x => x.Id == singleVaccinationCreate.CreatedBy) == null)
+                {
+                    throw new Exception("Người thực hiện này không tồn tại");
+                }
+                SingleVaccination singleVaccination = new SingleVaccination
+                {
+                    Id = SlugId.New(),
+                    BatchImportId = singleVaccinationCreate.BatchImportId,
+                    CreatedAt = DateTime.Now,
+                    CreatedBy = singleVaccinationCreate.CreatedBy,
+                    UpdatedAt = DateTime.Now,
+                    UpdatedBy = singleVaccinationCreate.CreatedBy,
+                    LivestockId = livestock.Id,
+                    MedicineId = singleVaccinationCreate.MedicineId
+                };
+                await _context.SingleVaccination.AddAsync(singleVaccination);
+                await _context.SaveChangesAsync();
+                return singleVaccinationCreate;
+
+            }
+            throw new Exception("Vật nuôi này không tồn tại");
+
         }
     }
 }

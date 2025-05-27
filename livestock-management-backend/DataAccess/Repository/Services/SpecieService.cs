@@ -36,6 +36,7 @@ namespace DataAccess.Repository.Services
 
         public async Task<SpecieDTO?> GetByIdAsync(string id)
         {
+            if (string.IsNullOrEmpty(id)) throw new Exception("Không có loài vật này trong hệ thống");
             var data = await _context.Species.FirstOrDefaultAsync(x => x.Id == id.Trim());
             if (data == null) throw new Exception("Không có loài vật này trong hệ thống");
             var result = _mapper.Map<SpecieDTO>(data);
@@ -67,14 +68,13 @@ namespace DataAccess.Repository.Services
         {
             var species = await _context.Species.FirstOrDefaultAsync(x => x.Id == id.Trim());
             if (species == null) throw new Exception("Không có loài vật này trong hệ thống");
-            if(specieUpdate.Name != species.Name)
-            {
-                var nameCheck = await _context.Species.Where(x => x.Name.ToLower().Trim() == specieUpdate.Name.ToLower().Trim()
-                                            && species.Type == specieUpdate.Type)
-                                            .ToArrayAsync();
-                if (nameCheck.Any())
-                    throw new Exception("Tên loài vật đã được sử dụng");
-            }
+            // Check for duplicate name (excluding current species)
+            var nameCheck = await _context.Species.Where(x => x.Name.ToLower().Trim() == specieUpdate.Name.ToLower().Trim()
+                                        && x.Type == specieUpdate.Type
+                                        && x.Id != id.Trim())
+                                        .ToArrayAsync();
+            if (nameCheck.Any())
+                throw new Exception("Tên loài vật đã được sử dụng");
             species.Name = specieUpdate.Name;
             species.Description = specieUpdate.Description;
             species.GrowthRate = specieUpdate.GrowthRate;
@@ -106,21 +106,21 @@ namespace DataAccess.Repository.Services
                 .Where(s => !_context.ProcurementDetails.Any(a => a.SpeciesId == s.Id))
                  .Where(s => !_context.Livestocks.Any(a => a.SpeciesId == s.Id))
                 .ToListAsync();
-            List<SpecieDTO> result=new List<SpecieDTO>();
+            List<SpecieDTO> result = new List<SpecieDTO>();
             _mapper.Map(species, result);
             return result;
         }
 
         public async Task<List<SpecieName>> GetListSpecieNameByType(specie_type type)
         {
-             var specieName = await _context.Species
-            .Where(x => x.Type == type)
-            .Select(s => new SpecieName
-            {
-                Id = s.Id,
-                Name = s.Name
-            })
-            .ToListAsync();
+            var specieName = await _context.Species
+           .Where(x => x.Type == type)
+           .Select(s => new SpecieName
+           {
+               Id = s.Id,
+               Name = s.Name
+           })
+           .ToListAsync();
 
             if (!specieName.Any())
                 throw new Exception("Không tồn tại loài vật này");

@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System.Data;
+using System.Drawing;
 using System.Drawing.Imaging;
 using BusinessObjects;
 using BusinessObjects.ConfigModels;
@@ -6,8 +7,11 @@ using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using ClosedXML.Excel;
 using DataAccess.Repository.Interfaces;
+using DocumentFormat.OpenXml.Office2010.Excel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml;
+using OfficeOpenXml.Table;
 using QRCoder;
 using static BusinessObjects.Constants.LmsConstants;
 
@@ -656,8 +660,51 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetDiseaseReport()
         {
-            return
-                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+            var medicalHistories = await _context.MedicalHistories
+                .Where(o => o.Status == medical_history_status.CHỜ_KHÁM
+                    || o.Status == medical_history_status.ĐANG_ĐIỀU_TRỊ
+                    || o.Status == medical_history_status.TÁI_PHÁT)
+                .ToArrayAsync();
+            var species = await _context.Species.ToArrayAsync();
+            //var 
+
+
+            //Export to file
+            var nowTime = DateTime.Now;
+            var stringDate = $"Ngày {nowTime.Day}, tháng {nowTime.Month}, năm {nowTime.Year}";
+            var fileName = $"Báo cáo dịch bệnh_{nowTime.ToString("yyyyMMddhhmmss")}.xlsx";
+            var diseaseIds = medicalHistories
+                .GroupBy(o => o.DiseaseId)
+                .Select(o => o.Key)
+                .ToArray();
+            var diseaseNames = await _context.Diseases
+                .Where(o => diseaseIds.Contains(o.Id))
+                .Select(o => o.Name)
+                .ToListAsync();
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            using var package = new ExcelPackage(new MemoryStream());
+            var worksheet = package.Workbook.Worksheets.Add($"Báo cáo dịch bệnh");
+
+            var richTextRow1 = worksheet.Cells["A1"].RichText;
+            var richTextRow2 = worksheet.Cells["A2"].RichText;
+            var boldSegmentRow1 = richTextRow1.Add(OrganizationName);
+            boldSegmentRow1.Bold = true;
+            var boldSegmentRow2 = richTextRow2.Add(stringDate);
+            boldSegmentRow2.Bold = true;
+
+            var columns = new string[] { "Giống/Bệnh" };
+            var tmpCols = columns.ToList();
+            tmpCols.AddRange(diseaseNames);
+            columns = tmpCols.ToArray();
+            var data = new DataTable();
+            data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+            worksheet.Cells["A3"].LoadFromDataTable(data, true, TableStyles.Light1);
+            await package.SaveAsync();
+            var stream = package.Stream;
+            stream.Position = 0;
+            var url = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileReportsName, fileName, stream);
+            return url;
         }
 
         public async Task<string> GetWeightBySpecieReport()
@@ -668,29 +715,36 @@ namespace DataAccess.Repository.Services
 
         public async Task<ListLivestockSummary> ListLivestockSummary()
         {
+            var acceptedStatuses = new List<livestock_status>
+            {
+                livestock_status.CHỜ_ĐỊNH_DANH,
+                livestock_status.KHỎE_MẠNH,
+                livestock_status.ỐM,
+                livestock_status.CHỜ_XUẤT
+            };
+            var allLivestocks = await _context.Livestocks
+                .Where(o => acceptedStatuses.Contains(o.Status))
+                .ToArrayAsync();
+            var totalQuantity = allLivestocks.Length;
+            var quantityByStatus = allLivestocks
+                .GroupBy(o => o.Status)
+                .Select(o => new LivestockQuantityByStatus
+                {
+                    Quantitiy = o.Count(),
+                    Ratio = o.Count() / totalQuantity * 100,
+                    Status = o.Key
+                })
+                .ToArray();
+            var summaryByStatus = new SummaryByStatus
+            {
+                Items = quantityByStatus,
+                Total = quantityByStatus.Sum(o => o.Quantitiy),
+                TotalRatio = quantityByStatus.Sum(o => o.Ratio)
+            };
             var result = new ListLivestockSummary
             {
-                TotalLivestockQuantity = 100,
-                SummaryByStatus = new SummaryByStatus
-                {
-                    Items = new List<LivestockQuantityByStatus>
-                    {
-                        new LivestockQuantityByStatus
-                        {
-                            Status = livestock_status.KHỎE_MẠNH,
-                            Quantitiy = 80,
-                            Ratio = 0.8M
-                        },
-                        new LivestockQuantityByStatus
-                        {
-                            Status = livestock_status.ỐM,
-                            Quantitiy = 20,
-                            Ratio = 0.2M
-                        },
-                    },
-                    Total = 100,
-                    TotalRatio = 1M,
-                }
+                TotalLivestockQuantity = totalQuantity,
+                SummaryByStatus = summaryByStatus
             };
 
             return result;
@@ -704,8 +758,30 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetRecordLivestockStatusTemplate()
         {
-            return
-                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+            var nowTime = DateTime.Now;
+            var stringDate = $"Ngày {nowTime.Day}, tháng {nowTime.Month}, năm {nowTime.Year}";
+            var fileName = $"Mẫu theo dõi tình trạng vật nuôi_{nowTime.ToString("yyyyMMddhhmmss")}.xlsx";
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            using var package = new ExcelPackage(new MemoryStream());
+            var worksheet = package.Workbook.Worksheets.Add($"Theo dõi tình trạng vật nuôi");
+
+            var richTextRow1 = worksheet.Cells["A1"].RichText;
+            var richTextRow2 = worksheet.Cells["A2"].RichText;
+            var boldSegmentRow1 = richTextRow1.Add(OrganizationName);
+            boldSegmentRow1.Bold = true;
+            var boldSegmentRow2 = richTextRow2.Add(stringDate);
+            boldSegmentRow2.Bold = true;
+
+            var columns = new string[] { "Mã kiểm dịch", "Giống", "Trạng thái", "Biểu hiện", "Chẩn đoán", "Thuốc" };
+            var data = new DataTable();
+            data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+            worksheet.Cells["A3"].LoadFromDataTable(data, true, TableStyles.Light1);
+            await package.SaveAsync();
+            var stream = package.Stream;
+            stream.Position = 0;
+            var url = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileTemplateName, fileName, stream);
+            return url;
         }
 
         public async Task ImportRecordLivestockStatusFile(string requestedBy, IFormFile file)
@@ -759,8 +835,30 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetRecordLivestockStatInformationTemplate()
         {
-            return
-                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+            var nowTime = DateTime.Now;
+            var stringDate = $"Ngày {nowTime.Day}, tháng {nowTime.Month}, năm {nowTime.Year}";
+            var fileName = $"Mẫu thông tin vật nuôi_{nowTime.ToString("yyyyMMddhhmmss")}.xlsx";
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            using var package = new ExcelPackage(new MemoryStream());
+            var worksheet = package.Workbook.Worksheets.Add($"Thông tin vật nuôi");
+
+            var richTextRow1 = worksheet.Cells["A1"].RichText;
+            var richTextRow2 = worksheet.Cells["A2"].RichText;
+            var boldSegmentRow1 = richTextRow1.Add(OrganizationName);
+            boldSegmentRow1.Bold = true;
+            var boldSegmentRow2 = richTextRow2.Add(stringDate);
+            boldSegmentRow2.Bold = true;
+
+            var columns = new string[] { "Mã kiểm dịch", "Giống", "Màu lông", "Trọng lượng (kg)", "Ngày sinh" };
+            var data = new DataTable();
+            data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+            worksheet.Cells["A3"].LoadFromDataTable(data, true, TableStyles.Light1);
+            await package.SaveAsync();
+            var stream = package.Stream;
+            stream.Position = 0;
+            var url = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileTemplateName, fileName, stream);
+            return url;
         }
 
         public async Task ImportRecordLivestockInformationFile(string requestedBy, IFormFile file)
@@ -774,7 +872,7 @@ namespace DataAccess.Repository.Services
                 return;
             var livestocks = await _context.Livestocks
                 .Where(o => livestockIds.Contains(o.Id)
-                    && (status == livestock_status.CHẾT || (status == livestock_status.KHỎE_MẠNH && o.Status == livestock_status.ỐM))
+                    && ((status == livestock_status.CHẾT && o.Status != livestock_status.CHẾT) || (status == livestock_status.KHỎE_MẠNH && o.Status == livestock_status.ỐM))
                 )
                 .ToArrayAsync();
             if (!livestocks.Any())
@@ -791,46 +889,100 @@ namespace DataAccess.Repository.Services
 
         public async Task<LivestockDetails> GetLivestockDetails(GetLivestockDetailsRequest request)
         {
-            var livestock = new LivestockDetails
+            // Validate input parameters
+            if (request == null ||
+                (string.IsNullOrEmpty(request.LivestockId) &&
+                 (string.IsNullOrEmpty(request.InspectionCode) || request.SpecieType == null)))
             {
-                LivestockId = "1",
-                InspectionCode = "000111",
-                SpecieId = "1",
-                SpecieName = "Bò lai Sind cái",
-                LivestockStatus = livestock_status.ỐM,
-                Weight = 450.5m,
-                Origin = "Việt Nam",
-                BarnId = "BARN001",
-                BarnName = "Hợp tác xã Lúa Vàng",
-                ImportDate = new DateTime(2024, 10, 15),
-                ImportWeight = 430.0m,
-                ExportDate = new DateTime(2025, 4, 20),
-                ExportWeight = 470.0m,
-                LastUpdatedAt = DateTime.UtcNow,
-                LastUpdatedBy = "Kim Văn Dự",
-                LivestockVaccinatedDiseases = new List<LivestockVaccinatedDisease>
+                throw new ArgumentException("Hãy quét mã QR hoặc điền đầy đủ thông tin");
+            }
+
+            // Find livestock by two methods:
+            // Method 1: By LivestockId
+            // Method 2: By both InspectionCode AND SpecieType
+            var livestock = await _context.Livestocks
+                .Include(l => l.Species)
+                .Include(l => l.Barn)
+                .Include(l => l.MedicalHistories)
+                    .ThenInclude(mh => mh.Disease)
+                .Include(l => l.MedicalHistories)
+                    .ThenInclude(mh => mh.Medicine)
+                .Include(l => l.LivestockVaccinations)
+                    .ThenInclude(lv => lv.BatchVaccination)
+                        .ThenInclude(bv => bv.Vaccine)
+                            .ThenInclude(v => v.DiseaseMedicines)
+                                .ThenInclude(dm => dm.Disease)
+                .Include(l => l.BatchImportDetails)
+                .Include(l => l.BatchExportDetails)
+                .Where(l => (!string.IsNullOrEmpty(request.LivestockId) && l.Id == request.LivestockId) ||
+                           (!string.IsNullOrEmpty(request.InspectionCode) && request.SpecieType != null &&
+                            l.InspectionCode == request.InspectionCode && l.Species.Type == request.SpecieType))
+                .FirstOrDefaultAsync();
+
+            if (livestock == null)
+            {
+                throw new Exception("Không tìm thấy vật nuôi");
+            }
+
+            // Get import information
+            var importDetail = livestock.BatchImportDetails?.OrderBy(bid => bid.CreatedAt).FirstOrDefault();
+
+            // Get export information  
+            var exportDetail = livestock.BatchExportDetails?.OrderByDescending(bed => bed.CreatedAt).FirstOrDefault();
+
+            // Get vaccinated diseases (diseases that have been vaccinated against)
+            var vaccinatedDiseases = livestock.LivestockVaccinations?
+                .Where(lv => lv.BatchVaccination?.Vaccine?.DiseaseMedicines != null)
+                .SelectMany(lv => lv.BatchVaccination.Vaccine.DiseaseMedicines)
+                .GroupBy(dm => dm.Disease.Id)
+                .Select(g => new LivestockVaccinatedDisease
                 {
-                    new LivestockVaccinatedDisease
-                    {
-                        DiseaseId = "D001",
-                        DiseaseName = "Lở mồm long móng",
-                        LastVaccinatedAt = new DateTime(2024, 11, 10)
-                    }
-                },
-                LivestockCurrentDiseases = new List<LivestockCurrentDisease>
+                    DiseaseId = g.Key,
+                    DiseaseName = g.First().Disease.Name,
+                    LastVaccinatedAt = livestock.LivestockVaccinations
+                        .Where(lv => lv.BatchVaccination.Vaccine.DiseaseMedicines.Any(dm => dm.DiseaseId == g.Key))
+                        .Max(lv => lv.CreatedAt)
+                })
+                .ToList() ?? new List<LivestockVaccinatedDisease>();
+
+            // Get current diseases (diseases currently being treated)
+            var currentDiseases = livestock.MedicalHistories?
+                .Where(mh => mh.Status == medical_history_status.ĐANG_ĐIỀU_TRỊ)
+                .GroupBy(mh => mh.DiseaseId)
+                .Select(g => new LivestockCurrentDisease
                 {
-                    new LivestockCurrentDisease
-                    {
-                        DiseaseId = "D002",
-                        DiseaseName = "Đau mắt",
-                        Status = medical_history_status.ĐANG_ĐIỀU_TRỊ,
-                        StartDate = new DateTime(2025, 1, 5),
-                        EndDate = null
-                    }
-                }
+                    DiseaseId = g.Key,
+                    DiseaseName = g.First().Disease.Name,
+                    Status = g.First().Status,
+                    StartDate = g.Min(mh => mh.CreatedAt),
+                    EndDate = g.FirstOrDefault(mh => mh.Status == medical_history_status.ĐÃ_KHỎI)?.UpdatedAt
+                })
+                .ToList() ?? new List<LivestockCurrentDisease>();
+
+            var result = new LivestockDetails
+            {
+                LivestockId = livestock.Id,
+                InspectionCode = livestock.InspectionCode ?? "N/A",
+                SpecieId = livestock.SpeciesId ?? "N/A",
+                SpecieType = livestock.Species?.Type,
+                SpecieName = livestock.Species?.Name ?? "N/A",
+                LivestockStatus = livestock.Status,
+                Color = livestock.Color,
+                Weight = livestock.WeightEstimate,
+                Origin = livestock.Origin,
+                BarnId = livestock.BarnId,
+                BarnName = livestock.Barn?.Name ?? "N/A",
+                ImportDate = importDetail?.ImportedDate,
+                ImportWeight = importDetail?.WeightImport ?? livestock.WeightOrigin,
+                ExportDate = exportDetail?.ExportDate,
+                ExportWeight = exportDetail?.WeightExport ?? livestock.WeightExport,
+                LastUpdatedAt = livestock.UpdatedAt,
+                LastUpdatedBy = livestock.UpdatedBy,
+                LivestockVaccinatedDiseases = vaccinatedDiseases,
+                LivestockCurrentDiseases = currentDiseases
             };
 
-            return livestock;
+            return result;
         }
 
         public async Task UpdateLivestockDetails(UpdateLivestockDetailsRequest request)

@@ -53,20 +53,38 @@ namespace DataAccess.Repository.Services
             return uploadResult.SecureUrl.ToString();
         }
 
-        public async Task<string> UploadFileStreamAsync(Stream stream, string fileName)
+        public async Task<string> UploadFileStreamAsync(string folderName, string fileName, Stream stream)
         {
             if (string.IsNullOrEmpty(fileName))
                 throw new Exception("File name is missing");
 
-            var uploadParams = new RawUploadParams
-            {
-                File = new FileDescription(fileName, stream),
-                PublicId = Path.GetFileNameWithoutExtension(fileName),
-                //ResourceType = "raw"
-            };
+            // Create a real temp file with the correct extension
+            var tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
 
-            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
-            return uploadResult?.SecureUrl?.ToString();
+            using (var fileStream = File.Create(tempFilePath))
+            {
+                await stream.CopyToAsync(fileStream);
+            }
+
+            try
+            {
+                var uploadParams = new RawUploadParams
+                {
+                    File = new FileDescription(tempFilePath),
+                    Folder = folderName,
+                    //PublicId = Path.Combine(folderName, Path.GetFileNameWithoutExtension(fileName)).Replace("\\", "/")
+                    PublicId = fileName,
+                    Overwrite = true
+                };
+
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                return uploadResult?.SecureUrl?.ToString();
+            }
+            finally
+            {
+                if (File.Exists(tempFilePath))
+                    File.Delete(tempFilePath);
+            }
         }
     }
 }

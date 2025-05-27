@@ -8,7 +8,7 @@ namespace DataAccess.Repository.Interfaces
 
         Task<string> UploadFileAsync(IFormFile file);
 
-        Task<string> UploadFileStreamAsync(Stream stream, string filename);
+        Task<string> UploadFileStreamAsync(string folderName, string fileName, Stream stream);
 
         Task<string> UploadFileToFolderAsync(string filePath, string folder, string fileName);
     }

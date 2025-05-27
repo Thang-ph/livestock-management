@@ -218,4 +218,14 @@ namespace BusinessObjects.Dtos
         public string CreatedBy { get; set; }
 
     }
+    public class SingleVaccinationCreateByInspection
+    {
+        public string? BatchImportId { get; set; }
+        public string InspectionCode { get; set; }
+        public specie_type SpecieType { get; set; }
+        public string MedicineId { get; set; }
+
+        public string CreatedBy { get; set; }
+
+    }
 }

@@ -19,7 +19,7 @@ namespace DataAccess.Repository.Services
         public async Task<BarnInfo> GetBarnById(string id)
         {
             var data = await _context.Barns.FirstOrDefaultAsync(x => x.Id == id);
-            if (data == null) 
+            if (data == null)
                 throw new Exception("Không có trại này trong hệ thống");
             return new BarnInfo
             {
@@ -43,8 +43,8 @@ namespace DataAccess.Repository.Services
                     Name = o.Name,
                     Address = o.Address,
                 })
-                .ToArrayAsync(); 
-            if (listBarns == null || !listBarns.Any()) 
+                .ToArrayAsync();
+            if (listBarns == null || !listBarns.Any())
                 return result;
 
             result.Items = listBarns;
@@ -64,13 +64,13 @@ namespace DataAccess.Repository.Services
                 Name = createModel.Name.Trim(),
                 Address = createModel.Address.Trim(),
                 CreatedAt = DateTime.Now,
-                CreatedBy = createModel.RequestedBy.Trim() ?? "SYS",
+                CreatedBy = createModel.RequestedBy?.Trim() ?? "SYS",
                 UpdatedAt = DateTime.Now,
-                UpdatedBy = createModel.RequestedBy.Trim() ?? "SYS",
+                UpdatedBy = createModel.RequestedBy?.Trim() ?? "SYS",
             };
             await _context.Barns.AddAsync(barn);
             await _context.SaveChangesAsync();
-            return new BarnInfo 
+            return new BarnInfo
             {
                 Id = barn.Id,
                 Name = barn.Name,
@@ -86,7 +86,7 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Trang trại này không tồn tại trong hệ thống");
             dataExist.Name = updateModel.Name.Trim();
             dataExist.Address = updateModel.Address.Trim();
-            dataExist.UpdatedBy = updateModel.RequestedBy.Trim() ?? "SYS";
+            dataExist.UpdatedBy = updateModel.RequestedBy?.Trim() ?? "SYS";
             dataExist.UpdatedAt = DateTime.Now;
             await _context.SaveChangesAsync();
             return new BarnInfo

@@ -2,6 +2,13 @@
 {
     public static class LmsConstants
     {
+        public const string OrganizationName = "HỢP TÁC XÃ DỊCH VỤ TỔNG HỢP VÀ SẢN XUẤT NÔNG NGHIỆP LÚA VÀNG";
+        public const string CloudFolderFileTemplateName = "livestock-management-templates";
+        public const string CloudFolderFileErrorName = "livetock-managment-error-files";
+        public const string CloudFolderFileQrCodesName = "livestock-management-qr-codes";
+        public const string CloudFolderFileReportsName = "livestock-management-reports";
+        public const string CloudFolderFileSuggestionsName = "livestocks-suggestion-files";
+
         public enum livestock_gender
         {
             ĐỰC,
@@ -43,7 +50,8 @@
             CHỜ_BÀN_GIAO,
             ĐANG_BÀN_GIAO,
             HOÀN_THÀNH,
-            ĐÃ_HỦY
+            ĐÃ_HỦY,
+            ĐANG_CHỜ_CHỌN
         }
 
         public enum medicine_type

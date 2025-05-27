@@ -110,7 +110,7 @@ namespace BusinessObjects.Dtos
     }
 
     public class ListLivestocks : ResponseListModel<LivestockSummary> { }
-    
+
     public class LivestockVaccineInfo
     {
         public string Id { get; set; }
@@ -118,7 +118,7 @@ namespace BusinessObjects.Dtos
         public string Species { get; set; }
         public string? Color { get; set; } = "N/A";
         [JsonConverter(typeof(JsonStringEnumConverter))]
-        public livestock_status Status { get; set; } 
+        public livestock_status Status { get; set; }
         public DateTime? DateConduct { get; set; }
         public string ConductedBy { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -198,7 +198,7 @@ namespace BusinessObjects.Dtos
         public string InspectionCode { get; set; }
         public List<LivestockSicknessDetail> disease { get; set; }
     }
-   public class LivestockSicknessDetail
+    public class LivestockSicknessDetail
     {
         public string? Symptom { get; set; }
         public string Disease { get; set; }
@@ -229,7 +229,7 @@ namespace BusinessObjects.Dtos
         public WeightRatioSummary WeightRatioSummary { get; set; }
     }
 
-    public class DiseaseRatio 
+    public class DiseaseRatio
     {
         public string DiseaseId { get; set; }
         public string DiseaseName { get; set; }
@@ -309,7 +309,7 @@ namespace BusinessObjects.Dtos
         public int TotalLivestockQuantity { get; set; }
         public SummaryByStatus SummaryByStatus { get; set; }
     }
-    
+
     public class LivestockQuantityByStatus
     {
 
@@ -325,8 +325,8 @@ namespace BusinessObjects.Dtos
 
     public class UpdateLivestockRequest
     {
-        public IEnumerable<string> LivestockIds { get; set; } 
-        public string RequestedBy { get; set; } 
+        public IEnumerable<string> LivestockIds { get; set; }
+        public string RequestedBy { get; set; }
     }
 
     public class UpdateLivestockDetailsRequest
@@ -344,7 +344,8 @@ namespace BusinessObjects.Dtos
     {
         public string? LivestockId { get; set; }
         public string? InspectionCode { get; set; }
-        public string? SpecieId { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public specie_type? SpecieType { get; set; }
     }
 
     public class LivestockDetails
@@ -352,10 +353,13 @@ namespace BusinessObjects.Dtos
         public string LivestockId { get; set; }
         public string InspectionCode { get; set; }
         public string SpecieId { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public specie_type? SpecieType { get; set; }
         public string SpecieName { get; set; }
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public livestock_status LivestockStatus { get; set; }
+        public string? Color { get; set; }
         public decimal? Weight { get; set; }
         public string? Origin { get; set; }
         public string? BarnId { get; set; }
@@ -366,8 +370,8 @@ namespace BusinessObjects.Dtos
         public decimal? ExportWeight { get; set; }
         public DateTime? LastUpdatedAt { get; set; }
         public string? LastUpdatedBy { get; set; }
-        public IEnumerable<LivestockVaccinatedDisease>? LivestockVaccinatedDiseases { get; set; } 
-        public IEnumerable<LivestockCurrentDisease>? LivestockCurrentDiseases { get; set; } 
+        public IEnumerable<LivestockVaccinatedDisease>? LivestockVaccinatedDiseases { get; set; }
+        public IEnumerable<LivestockCurrentDisease>? LivestockCurrentDiseases { get; set; }
     }
 
     public class LivestockVaccinatedDisease

@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataAccess", "DataAccess\Da
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LivestockManagementSystemAPI", "LivestockManagementSystemAPI\LivestockManagementSystemAPI.csproj", "{A8B14C0C-4F29-4AB8-8C2A-CD4A4932A55F}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LivestockManagementSystem.Tests", "LivestockManagementSystem.Tests\LivestockManagementSystem.Tests.csproj", "{B9C15D8E-7F3A-4BC9-9E2D-F4E6A8B7C3D2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{A8B14C0C-4F29-4AB8-8C2A-CD4A4932A55F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A8B14C0C-4F29-4AB8-8C2A-CD4A4932A55F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A8B14C0C-4F29-4AB8-8C2A-CD4A4932A55F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B9C15D8E-7F3A-4BC9-9E2D-F4E6A8B7C3D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B9C15D8E-7F3A-4BC9-9E2D-F4E6A8B7C3D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B9C15D8E-7F3A-4BC9-9E2D-F4E6A8B7C3D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B9C15D8E-7F3A-4BC9-9E2D-F4E6A8B7C3D2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

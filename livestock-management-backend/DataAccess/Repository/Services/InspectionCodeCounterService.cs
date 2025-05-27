@@ -134,7 +134,7 @@ namespace DataAccess.Repository.Services
             if (inspectionCodeCounter.CurrentRangeId == null)
             {
                
-                var id = listCodeRange.SingleOrDefault();
+                var id = listCodeRange.FirstOrDefault();
                 if (id != null)
                 {
                     inspectionCodeCounter.CurrentRangeId = id.Id;
@@ -151,7 +151,16 @@ namespace DataAccess.Repository.Services
             var currentCodeNow = "";
 
             // Chuyển đổi CurrentCode và MaxCode sang int
-            int currentCode = int.Parse(codeRange.CurrentCode);
+             int currentCode = int.Parse(codeRange.CurrentCode);
+
+            //Check Inspection Is used or not
+            specie_type parsedType = (specie_type)Enum.Parse(typeof(specie_type), type, ignoreCase: true);
+            var livestock = await _context.Livestocks
+                .Include(s => s.Species)
+                .FirstOrDefaultAsync(x => x.InspectionCode == (currentCode - 1).ToString() && x.Species.Type == parsedType);
+            if (livestock == null)
+                currentCode -= 1;
+
             int maxCode = int.Parse(codeRange.EndCode);
             InspectionCodeRangeFilter filter = new InspectionCodeRangeFilter();
             var inspectionCodeRangeList = await GetListInspectionCodeRange(filter);
@@ -172,7 +181,7 @@ namespace DataAccess.Repository.Services
                 // Đã đạt giới hạn phải chuyển sang range tiếp theo
                 try
                 {
-                    var newCode = listCodeRange.Where(x => !x.Id.Equals(inspectionCodeCounter.CurrentRangeId)).SingleOrDefault();
+                    var newCode = listCodeRange.Where(x => !x.Id.Equals(inspectionCodeCounter.CurrentRangeId)).FirstOrDefault();
                     if (newCode != null)
                     {
                         inspectionCodeCounter.CurrentRangeId = newCode.Id;
