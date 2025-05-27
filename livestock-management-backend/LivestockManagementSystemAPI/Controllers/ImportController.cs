@@ -758,7 +758,7 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
-        [HttpPut("confirm-imported/{livestockId}")]
+        [HttpPost("confirm-imported/{livestockId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -795,7 +795,7 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
-        [HttpPut("confirm-livestock-for-meat-sale/{livestockId}")]
+        [HttpPost("confirm-livestock-for-meat-sale/{livestockId}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

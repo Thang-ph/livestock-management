@@ -151,15 +151,20 @@ namespace DataAccess.Repository.Services
             var currentCodeNow = "";
 
             // Chuyển đổi CurrentCode và MaxCode sang int
-             int currentCode = int.Parse(codeRange.CurrentCode);
+            int currentCode = int.Parse(codeRange.CurrentCode);
 
             //Check Inspection Is used or not
+            var cunrrent = currentCode - 1;
+            var temp = cunrrent.ToString("D" + codeRange.CurrentCode.Length);
             specie_type parsedType = (specie_type)Enum.Parse(typeof(specie_type), type, ignoreCase: true);
             var livestock = await _context.Livestocks
                 .Include(s => s.Species)
-                .FirstOrDefaultAsync(x => x.InspectionCode == (currentCode - 1).ToString() && x.Species.Type == parsedType);
+                .FirstOrDefaultAsync(x => x.InspectionCode.Equals(temp) && x.Species.Type == parsedType);
             if (livestock == null)
-                currentCode -= 1;
+            {
+                if (currentCode != int.Parse(codeRange.StartCode))
+                    currentCode -= 1;
+            }
 
             int maxCode = int.Parse(codeRange.EndCode);
             InspectionCodeRangeFilter filter = new InspectionCodeRangeFilter();

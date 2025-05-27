@@ -788,8 +788,18 @@ namespace DataAccess.Repository.Services
                 .ToList();
                 foreach (VaccinationRequirement vaccinationRequirement in distinctRequirements)
                 {
-                    List<SingleVaccination> singleVaccinationList = _context.SingleVaccination.Include(x => x.Medicine).ThenInclude(x => x.DiseaseMedicines).ThenInclude(x => x.Disease)
-                        .Where(x => x.Medicine.DiseaseMedicines.FirstOrDefault().Disease.Id == vaccinationRequirement.Disease.Id&& x.CreatedAt > DateTime.Now.AddDays(-21)).ToList();
+                    var query = _context.SingleVaccination
+      .Include(x => x.Medicine)
+          .ThenInclude(m => m.DiseaseMedicines)
+              .ThenInclude(dm => dm.Disease);
+
+                    List<SingleVaccination> filtered = query
+                        .Where(x => x.CreatedAt > DateTime.Now.AddDays(-21)
+                                 && livestockIds.Contains(x.LivestockId)).ToList();
+                    var singleVaccinationList = filtered
+                        .Where(x => x.Medicine.DiseaseMedicines
+                            .Any(dm => dm.Disease != null && dm.Disease.Id == vaccinationRequirement.Disease.Id));
+
 
                     var diseaseVaccinations = livestockVaccinations
 .Where(x => x.BatchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault()?.DiseaseId == vaccinationRequirement.Disease.Id);
@@ -797,16 +807,16 @@ namespace DataAccess.Repository.Services
                     var recentDiseaseVaccinations = diseaseVaccinations
                         .Where(x => x.CreatedAt > DateTime.Now.AddDays(-21));
 
-                    var count = recentDiseaseVaccinations
-                        .Select(x => x.LivestockId)
-                        .Distinct()
-                        .Count();
+                    //var count = recentDiseaseVaccinations
+                    //    .Select(x => x.LivestockId)
+                    //    .Distinct()
+                    //    .Count();
 
-     //               var count = recentDiseaseVaccinations
-     //.Select(x => x.LivestockId)
-     //.Concat(singleVaccinationList.Select(x => x.LivestockId))
-     //.Distinct()
-     //.Count();
+                    var count = recentDiseaseVaccinations
+     .Select(x => x.LivestockId)
+     .Concat(singleVaccinationList.Select(x => x.LivestockId))
+     .Distinct()
+     .Count();
                     DiseaseRequire diseaseRequire = new DiseaseRequire
                     {
                         HasDone = count,
@@ -1038,23 +1048,66 @@ namespace DataAccess.Repository.Services
                                                                      x.BatchExportDetails.Any(bed => bed.BatchExport.ProcurementPackage.Id == procurementId))
                                                          .ToList();
 
+                        //List<Livestock> listLivestockVaccinated = _context.Livestocks
+                        //                                        .Include(x => x.LivestockVaccinations)
+                        //                                            .ThenInclude(lv => lv.BatchVaccination)
+                        //                                                .ThenInclude(bv => bv.Vaccine)
+                        //                                                    .ThenInclude(v => v.DiseaseMedicines)
+                        //                                        .Include(x => x.BatchExportDetails)
+                        //                                            .ThenInclude(bed => bed.BatchExport)
+                        //                                                .ThenInclude(be => be.ProcurementPackage)
+                        //                                        .Where(x =>
+                        //                                            x.LivestockVaccinations.Any(lv =>
+                        //                                                lv.CreatedAt >= DateTime.Now.AddDays(-21) &&
+                        //                                                lv.BatchVaccination.Vaccine.DiseaseMedicines.Any(dm => dm.DiseaseId == disease.Id)
+                        //                                            )
+                        //                                            && x.Species.Id == species.Id
+                        //                                            && x.BatchExportDetails.Any(bed => bed.BatchExport.ProcurementPackage.Id == procurementId)
+                        //                                        )
+                        //                                        .ToList();
+                        // 1. Truy vấn các con vật tiêm theo đợt (BatchVaccination)
+                        List<BatchExportDetail> listBatchExportDetails = _context.BatchExportDetails.Include(x=>x.BatchExport).
+                            ThenInclude(x=>x.ProcurementPackage).Where(x => x.BatchExport.ProcurementPackage.Id==procurementId).ToList();
+                        List<string> livestockIds = listBatchExportDetails.Select(x => x.LivestockId).Distinct().ToList();
+                        List<Livestock> livestockVaccinatedFromBatch = _context.LivestockVaccinations
+                            .Include(lv => lv.Livestock)
+                                .ThenInclude(x => x.BatchExportDetails)
+                                    .ThenInclude(bed => bed.BatchExport)
+                                        .ThenInclude(be => be.ProcurementPackage)
+                            .Include(lv => lv.BatchVaccination)
+                                .ThenInclude(bv => bv.Vaccine)
+                                    .ThenInclude(v => v.DiseaseMedicines)
+                            .Where(lv => lv.CreatedAt >= DateTime.Now.AddDays(-21)
+                                      && lv.BatchVaccination.Vaccine.DiseaseMedicines.Any(dm => dm.DiseaseId == disease.Id))
+                            .Select(lv => lv.Livestock)
+                            .Where(l => l.Species.Id == species.Id
+                                     && l.BatchExportDetails.Any(bed => bed.BatchExport.ProcurementPackage.Id == procurementId))
+                            .Distinct()
+                            .ToList();
+
+                        // 2. Truy vấn các con vật tiêm lẻ (SingleVaccination)
+                        List<string> singleVaccinatedLivestockIds = _context.SingleVaccination
+                            .Include(sv => sv.Medicine)
+                                .ThenInclude(m => m.DiseaseMedicines)
+                                    .ThenInclude(dm => dm.Disease)
+                            .Where(sv => sv.CreatedAt >= DateTime.Now.AddDays(-21)
+                                      && sv.Medicine.DiseaseMedicines.Any(dm => dm.Disease != null && dm.Disease.Id == disease.Id)
+                                      && livestockIds.Contains(sv.LivestockId))
+                            .Select(sv => sv.LivestockId)
+                            .Distinct()
+                            .ToList();
+
+                        // 3. Gộp danh sách Livestock từ cả 2 nguồn
                         List<Livestock> listLivestockVaccinated = _context.Livestocks
-                                                                .Include(x => x.LivestockVaccinations)
-                                                                    .ThenInclude(lv => lv.BatchVaccination)
-                                                                        .ThenInclude(bv => bv.Vaccine)
-                                                                            .ThenInclude(v => v.DiseaseMedicines)
-                                                                .Include(x => x.BatchExportDetails)
-                                                                    .ThenInclude(bed => bed.BatchExport)
-                                                                        .ThenInclude(be => be.ProcurementPackage)
-                                                                .Where(x =>
-                                                                    x.LivestockVaccinations.Any(lv =>
-                                                                        lv.CreatedAt >= DateTime.Now.AddDays(-21) &&
-                                                                        lv.BatchVaccination.Vaccine.DiseaseMedicines.Any(dm => dm.DiseaseId == disease.Id)
-                                                                    )
-                                                                    && x.Species.Id == species.Id
-                                                                    && x.BatchExportDetails.Any(bed => bed.BatchExport.ProcurementPackage.Id == procurementId)
-                                                                )
-                                                                .ToList();
+                            .Include(x => x.BatchExportDetails)
+                                .ThenInclude(bed => bed.BatchExport)
+                                    .ThenInclude(be => be.ProcurementPackage)
+                            .Where(x =>
+                                singleVaccinatedLivestockIds.Contains(x.Id) ||
+                                livestockVaccinatedFromBatch.Select(l => l.Id).Contains(x.Id)
+                            )
+                            .Distinct()
+                            .ToList();
 
                         IsCreated isCreated = IsCreated.CHƯA_TẠO;
                         if (batchVaccination != null)
@@ -1124,16 +1177,47 @@ namespace DataAccess.Repository.Services
                 .Where(d => d != null)
                 .Distinct()
                 .ToList();
+            // 1. Lấy danh sách bệnh đã tiêm từ LivestockVaccination (tiêm theo lô)
+            List<Disease> vaccinatedDiseasesFromBatch = _context.LivestockVaccinations
+                .Include(x => x.BatchVaccination)
+                    .ThenInclude(bv => bv.Vaccine)
+                        .ThenInclude(v => v.DiseaseMedicines)
+                            .ThenInclude(dm => dm.Disease)
+                .Where(x => x.LivestockId == livestock.Id && x.CreatedAt >= DateTime.Now.AddDays(-21))
+                .SelectMany(x => x.BatchVaccination.Vaccine.DiseaseMedicines)
+                .Where(dm => dm.Disease != null)
+                .Select(dm => dm.Disease)
+                .Distinct()
+                .ToList();
 
-            List<Disease> listVaccinatedDisease = _context.LivestockVaccinations
-         .Where(x => x.LivestockId == livestock.Id && x.CreatedAt >= DateTime.Now.AddDays(-21))
-         .Select(x => x.BatchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault().Disease)
-         .ToList();
+            // 2. Lấy danh sách bệnh đã tiêm từ SingleVaccination (tiêm lẻ)
+            List<Disease> vaccinatedDiseasesFromSingle = _context.SingleVaccination
+                .Include(sv => sv.Medicine)
+                    .ThenInclude(m => m.DiseaseMedicines)
+                        .ThenInclude(dm => dm.Disease)
+                .Where(sv => sv.LivestockId == livestock.Id && sv.CreatedAt >= DateTime.Now.AddDays(-21))
+                .SelectMany(sv => sv.Medicine.DiseaseMedicines)
+                .Where(dm => dm.Disease != null)
+                .Select(dm => dm.Disease)
+                .Distinct()
+                .ToList();
 
+            // 3. Gộp danh sách bệnh đã tiêm từ cả hai nguồn
+            List<Disease> listVaccinatedDisease = vaccinatedDiseasesFromBatch
+                .Concat(vaccinatedDiseasesFromSingle)
+                .GroupBy(d => d.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            // 4. Lọc ra danh sách bệnh chưa tiêm
             List<Disease> listUnvaccinatedDiseases = listDisease
-            .Where(d => !listVaccinatedDisease.Any(vd => vd.Id == d.Id))
-            .ToList();
-            var unvaccinatedDiseaseIds = listUnvaccinatedDiseases.Select(d => d.Id).ToList();
+                .Where(d => !listVaccinatedDisease.Any(vd => vd.Id == d.Id))
+                .ToList();
+
+            List<string> unvaccinatedDiseaseIds = listUnvaccinatedDiseases
+                .Select(d => d.Id)
+                .ToList();
+
 
             var listBatchVaccinations = _context.BatchVaccinations
                 .Include(x => x.Vaccine)
@@ -1194,15 +1278,46 @@ namespace DataAccess.Repository.Services
                 .Where(d => d != null)
                 .Distinct()
                 .ToList();
-            List<Disease> listVaccinatedDisease = _context.LivestockVaccinations
-     .Where(x => x.LivestockId == livestock.Id && x.CreatedAt >= DateTime.Now.AddDays(-21))
-     .Select(x => x.BatchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault().Disease)
-     .ToList();
+            // 1. Lấy danh sách bệnh đã tiêm từ LivestockVaccination (tiêm theo lô)
+            List<Disease> vaccinatedDiseasesFromBatch = _context.LivestockVaccinations
+                .Include(x => x.BatchVaccination)
+                    .ThenInclude(bv => bv.Vaccine)
+                        .ThenInclude(v => v.DiseaseMedicines)
+                            .ThenInclude(dm => dm.Disease)
+                .Where(x => x.LivestockId == livestock.Id && x.CreatedAt >= DateTime.Now.AddDays(-21))
+                .SelectMany(x => x.BatchVaccination.Vaccine.DiseaseMedicines)
+                .Where(dm => dm.Disease != null)
+                .Select(dm => dm.Disease)
+                .Distinct()
+                .ToList();
 
+            // 2. Lấy danh sách bệnh đã tiêm từ SingleVaccination (tiêm lẻ)
+            List<Disease> vaccinatedDiseasesFromSingle = _context.SingleVaccination
+                .Include(sv => sv.Medicine)
+                    .ThenInclude(m => m.DiseaseMedicines)
+                        .ThenInclude(dm => dm.Disease)
+                .Where(sv => sv.LivestockId == livestock.Id && sv.CreatedAt >= DateTime.Now.AddDays(-21))
+                .SelectMany(sv => sv.Medicine.DiseaseMedicines)
+                .Where(dm => dm.Disease != null)
+                .Select(dm => dm.Disease)
+                .Distinct()
+                .ToList();
+
+            // 3. Gộp danh sách bệnh đã tiêm từ cả hai nguồn
+            List<Disease> listVaccinatedDisease = vaccinatedDiseasesFromBatch
+                .Concat(vaccinatedDiseasesFromSingle)
+                .GroupBy(d => d.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            // 4. Lọc ra danh sách bệnh chưa tiêm
             List<Disease> listUnvaccinatedDiseases = listDisease
-            .Where(d => !listVaccinatedDisease.Any(vd => vd.Id == d.Id))
-            .ToList();
-            var unvaccinatedDiseaseIds = listUnvaccinatedDiseases.Select(d => d.Id).ToList();
+                .Where(d => !listVaccinatedDisease.Any(vd => vd.Id == d.Id))
+                .ToList();
+
+            List<string> unvaccinatedDiseaseIds = listUnvaccinatedDiseases
+                .Select(d => d.Id)
+                .ToList();
 
             var listBatchVaccinations = _context.BatchVaccinations
                 .Include(x => x.Vaccine)
