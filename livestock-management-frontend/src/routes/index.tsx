@@ -27,6 +27,7 @@ const GoogleCallback = lazy(
 const CompleteForgotPasswordPage = lazy(
   () => import('@/pages/auth/complete-forgot-password/index')
 );
+const BaoHanhPage = lazy(() => import('@/pages/BaoHanhPage/index'));
 
 const DashboardPage = lazy(() => import('@/pages/Dashboard/index'));
 const LandingPage = lazy(() => import('@/pages/LandingPage/index'));
@@ -46,6 +47,24 @@ const ChiTietTiemChungGoiThauPage = lazy(
 const DanhSachLoNhapAdminPage = lazy(
   () => import('@/pages/DanhSachLoNhapAdmin/index')
 );
+const ChiTietBaoHanhPage = lazy(() => import('@/pages/BaoHanhDetail/index'));
+
+const DanhSachDonMuaLePage = lazy(
+  () => import('@/pages/DanhSachDonMuaLe/index')
+);
+const ChiTietDonBanLe = lazy(() => import('@/pages/ChiTietDonBanLe2'));
+const ListBaoHanhPage = lazy(() => import('@/pages/ListBaoHanhPage'));
+const LiveStockDashboard = lazy(
+  () => import('@/pages/DashboardLiveStock/index')
+);
+
+const ThongKeDichBenhPage = lazy(
+  () => import('@/pages/ThongKeDichBenhPage/index')
+);
+const QuanLyVatNuoiThongKe = lazy(
+  () => import('@/pages/DanhSachVatNuoiThongKe/index')
+);
+const ThongTinVatNuoi = lazy(() => import('@/pages/ThongTinVatNuoi/index'));
 
 // ----------------------------------------------------------------------
 
@@ -211,6 +230,79 @@ export default function AppRouter() {
           element: (
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/bao-hanh',
+          element: (
+            <ProtectedRoute>
+              <BaoHanhPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/chi-tiet-bao-hanh/:id',
+          element: (
+            <ProtectedRoute>
+              <ChiTietBaoHanhPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/list-bao-hanh/:status',
+          element: (
+            <ProtectedRoute>
+              <ListBaoHanhPage />
+            </ProtectedRoute>
+          )
+        },
+
+        {
+          path: '/chi-tiet-don-mua-le/:id',
+          element: (
+            <ProtectedRoute>
+              <ChiTietDonBanLe />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/danh-sach-don-mua-le',
+          element: (
+            <ProtectedRoute>
+              <DanhSachDonMuaLePage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/livestock-dashboard',
+          element: (
+            <ProtectedRoute>
+              <LiveStockDashboard />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/thong-ke-dich-benh',
+          element: (
+            <ProtectedRoute>
+              <ThongKeDichBenhPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/quan-ly-vat-nuoi-thong-ke',
+          element: (
+            <ProtectedRoute>
+              <QuanLyVatNuoiThongKe />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: '/thong-tin-vat-nuoi/:id',
+          element: (
+            <ProtectedRoute>
+              <ThongTinVatNuoi />
             </ProtectedRoute>
           )
         }

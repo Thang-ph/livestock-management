@@ -24,6 +24,17 @@ namespace BusinessObjects.Dtos
         public string CreatedBy { get; set; }
 
     }
+    public class BatchExportDetailAddDTOByInspectionCode
+    {
+        public string BatchExportId { get; set; }
+        public string InspectionCode { get; set; }
+        public specie_type Specie_Type { get; set; }
+        public DateTime? ExpiredInsuranceDate { get; set; }
+
+        [Required(ErrorMessage = "Người tạo không được để trống")]
+        public string CreatedBy { get; set; }
+
+    }
     public class BatchExportDetailChangeDTO
     {
         [Required(ErrorMessage = "ID lô xuất không được để trống")]

@@ -17,8 +17,8 @@ export default function ListData({ data, pageCount }: TTableProps) {
           pageCount={pageCount}
           showAdd={false}
           heightTable="50dvh"
-          placeHolderInputSearch="Tên lô tiêm..."
-          showSearch={false}
+          placeHolderInputSearch="Tên vật nuôi..."
+          showSearch={true}
         />
       )}
     </>

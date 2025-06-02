@@ -19,6 +19,7 @@ using ClosedXML.Excel;
 using Microsoft.AspNetCore.Http;
 using OfficeOpenXml;
 using System.Globalization;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace DataAccess.Repository.Services
 {
@@ -26,14 +27,18 @@ namespace DataAccess.Repository.Services
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly LmsContext _context;
-        public BatchVacinationService(LmsContext context, UserManager<IdentityUser> userManager)
+        private readonly ICloudinaryRepository _cloudinaryService;
+
+        public BatchVacinationService(LmsContext context, UserManager<IdentityUser> userManager, ICloudinaryRepository cloudinaryService)
         {
             _userManager = userManager;
             _context = context;
+            _cloudinaryService = cloudinaryService;
         }
 
-        public async Task<BatchVaccination> CreateBatchVacinationDetail(BatchVacinationCreate batchVacinationCreate)
+        public async Task<bool> CreateBatchVacinationDetail(BatchVacinationCreate batchVacinationCreate)
         {
+            
             var Medicine = _context.Medicines.AsNoTracking().FirstOrDefault(x => x.Id == batchVacinationCreate.VaccineId);
             if (Medicine == null)
             {
@@ -52,9 +57,38 @@ namespace DataAccess.Repository.Services
             batchVaccination.CreatedBy = batchVacinationCreate.CreatedBy;
             batchVaccination.UpdatedBy = batchVacinationCreate.CreatedBy;
             batchVaccination.Type = batchVacinationCreate.Type;
-            _context.BatchVaccinations.Add(batchVaccination);
-            _context.SaveChanges();
-            return batchVaccination;
+            await    _context.BatchVaccinations.AddAsync(batchVaccination);
+            await    _context.SaveChangesAsync();
+            if (!String.IsNullOrEmpty(batchVacinationCreate.ProcurementId)&&!String.IsNullOrEmpty(batchVacinationCreate.SpecieId))
+            {
+                ProcurementDetail procurementDetail = _context.ProcurementDetails.Include(x=>x.Species).FirstOrDefault(x => x.ProcurementPackageId == batchVacinationCreate.ProcurementId
+                && x.Species.Id == batchVacinationCreate.SpecieId);
+                if (procurementDetail==null)
+                {
+                    throw new Exception("Không tìm thấy chi tiết gói thầu khi tạo lô tiêm cho gói thầu");
+                }
+                BatchVaccinationProcurement batchVaccinationProcurement = new BatchVaccinationProcurement
+                {
+                    Id = SlugId.New(),
+                    BatchVaccinationId = batchVaccination.Id,
+                    ProcurementDetailId = procurementDetail.Id,
+                    CreatedAt = DateTime.Now,
+                   UpdatedAt = DateTime.Now,
+                    CreatedBy = batchVacinationCreate.CreatedBy,
+                  UpdatedBy = batchVacinationCreate.CreatedBy,
+                };
+              await  _context.BatchVaccinationProcurement.AddAsync(batchVaccinationProcurement);
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex)
+                {
+                    throw new Exception("Lỗi lưu dữ liệu: " + ex.InnerException?.Message ?? ex.Message, ex);
+                }
+
+            }
+            return true;
         }
         public async Task<BatchVaccination> UpdateBatchVacinationAsync(BatchVacinationUpdate batchVacinationUpdate, string batchVaccinationId)
         {
@@ -149,11 +183,11 @@ namespace DataAccess.Repository.Services
                     ConductedBy = v.ConductedBy,
                     Status = v.Status,
                     DateConduct = v.DateConduct,
-                    CreatedAt = v.CreatedAt
+                    CreatedAt = v.CreatedAt,
+                    MedicineName=v.Vaccine?.Name??"N/A",
+                    DiseaseName = v.Vaccine?.DiseaseMedicines?.FirstOrDefault()?.Disease?.Name ?? "N/A"
                 })
                 .OrderByDescending(v => v.CreatedAt)
-                .Skip(filter?.Skip ?? 0)
-                .Take(filter?.Take ?? 10)
                 .ToArray();
             result.Total = vaccination.Length;
 
@@ -258,8 +292,6 @@ namespace DataAccess.Repository.Services
                    CreatedAt = v.CreatedAt
                })
                .OrderByDescending(v => v.CreatedAt)
-               .Skip(filter?.Skip ?? 0)
-               .Take(filter?.Take ?? 10)
                .ToArray();
             result.Total = livestocks.Length;
 
@@ -365,11 +397,8 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Con vật không tồn tại");
             }
             List<LivestockVaccination> existLivestock = _context.LivestockVaccinations.Where(x => x.LivestockId == livestockVaccinationAdd.LivestockId).ToList();
-            if (existLivestock.Any())
-            {
-                throw new Exception("Vật nuôi đã thuộc 1 lô tiêm khác");
-            }
-            _context.BatchVaccinations
+           
+     await       _context.BatchVaccinations
     .Where(x => x.Id == livestockVaccinationAdd.BatchVaccinationId)
     .ExecuteUpdateAsync(x => x.SetProperty(b => b.Status, batch_vaccination_status.ĐANG_THỰC_HIỆN));
             LivestockVaccination livestockVaccination = new LivestockVaccination();
@@ -496,7 +525,7 @@ namespace DataAccess.Repository.Services
             return true;
         }
 
-        public async Task<Stream> ExportTemplateVaccinationBatch()
+        public async Task<string> ExportTemplateVaccinationBatch()
         {
             // Get species list to use for reference in example data
             var speciesList = await _context.Species
@@ -597,7 +626,9 @@ namespace DataAccess.Repository.Services
                 workbook.SaveAs(stream);
                 stream.Position = 0;
 
-                return stream;
+                var fileUrl = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileReportsName, "Template_Dien_Danh_Sach_Vat_Nuoi" + DateTime.Now.ToString("ddMMyyyy") + ".xlsx", stream);
+
+                return fileUrl;
             }
         }
 
@@ -772,8 +803,9 @@ namespace DataAccess.Repository.Services
             List<ListRequireVaccinationProcurement> listRequireVaccinationProcurements = new List<ListRequireVaccinationProcurement>();
             foreach (ProcurementPackage procurementPackage in listProcurementPackages)
             {
-                BatchExport batchExports = listBatchExports.FirstOrDefault(x => x.ProcurementPackageId == procurementPackage.Id);
-                List<BatchExportDetail> listBatchExportDetails = _context.BatchExportDetails.Where(x => x.BatchExportId == batchExports.Id).ToList();
+                List<BatchExport> batchExports = listBatchExports.Where(x => x.ProcurementPackageId == procurementPackage.Id).ToList();
+                List<string> batchExportsIds = batchExports.Select(x => x.Id).Distinct().ToList();
+                List<BatchExportDetail> listBatchExportDetails = _context.BatchExportDetails.Where(x => batchExportsIds.Contains(x.BatchExportId)).ToList();
                 List<string> livestockIds = listBatchExportDetails.Select(x => x.LivestockId).Distinct().ToList();
                 List<Livestock> listLivestocks = _context.Livestocks.Where(x => livestockIds.Contains(x.Id)).ToList();
                 List<LivestockVaccination> livestockVaccinations = _context.LivestockVaccinations.Where(x => livestockIds.Contains(x.LivestockId))
@@ -963,7 +995,7 @@ namespace DataAccess.Repository.Services
             {
                 BatchVaccinationId = batch.Id,
                 BatchVaccinationName = batch.Name,
-                ConductName = batch.ConductedBy,
+                ConductName = _userManager.Users.FirstOrDefault(x => x.Id == batch.ConductedBy)?.UserName??"SYS",
                 MedicineName = batch.Vaccine.Name,
                 SchedulteTime = batch.DateSchedule,
                 DiseaseName = batch.Vaccine.DiseaseMedicines.FirstOrDefault()?.Disease?.Name,
@@ -1066,8 +1098,8 @@ namespace DataAccess.Repository.Services
                         //                                        )
                         //                                        .ToList();
                         // 1. Truy vấn các con vật tiêm theo đợt (BatchVaccination)
-                        List<BatchExportDetail> listBatchExportDetails = _context.BatchExportDetails.Include(x=>x.BatchExport).
-                            ThenInclude(x=>x.ProcurementPackage).Where(x => x.BatchExport.ProcurementPackage.Id==procurementId).ToList();
+                        List<BatchExportDetail> listBatchExportDetails = _context.BatchExportDetails.Include(x=>x.Livestock).ThenInclude(x=>x.Species).Include(x=>x.BatchExport).
+                            ThenInclude(x=>x.ProcurementPackage).Where(x => x.BatchExport.ProcurementPackage.Id==procurementId&&x.Livestock.Species.Id==species.Id).ToList();
                         List<string> livestockIds = listBatchExportDetails.Select(x => x.LivestockId).Distinct().ToList();
                         List<Livestock> livestockVaccinatedFromBatch = _context.LivestockVaccinations
                             .Include(lv => lv.Livestock)
@@ -1120,9 +1152,11 @@ namespace DataAccess.Repository.Services
                         }
                         DiseaseRequireForSpecie diseaseRequireForSpecie = new DiseaseRequireForSpecie
                         {
+                            DiseaseId=disease.Id,
                             DiseaseName = disease.Name,
                             MedicineName = batchVaccination?.Vaccine?.Name ?? "N/A",
                             BatchVaccinationId = batchVaccination?.Id ?? "N/A",
+                            SpecieId = procurementDetail.Species?.Id ?? "",
                             SpecieName = procurementDetail.Species?.Name ?? "N/A",
                             isCreated = isCreated,
                             HasDone = listLivestockVaccinated.Count(),
@@ -1137,7 +1171,11 @@ namespace DataAccess.Repository.Services
                  
                 }
             }
-            BatchExport batchExports = _context.BatchExports.Include(x=>x.BatchExportDetails).FirstOrDefault(x => x.ProcurementPackageId == procurementId);
+
+            List<BatchExport> batchExports = _context.BatchExports.Where(x => x.ProcurementPackageId == procurementId).ToList();
+            List<string> batchExportsIds = batchExports.Select(x => x.Id).Distinct().ToList();
+            List<BatchExportDetail> listBatchExportDetails1 = _context.BatchExportDetails.Where(x => batchExportsIds.Contains(x.BatchExportId)).ToList();
+
             ProcurementPackage procurementPackage = _context.ProcurementPackages.FirstOrDefault(x => x.Id == procurementId);
             if (procurementPackage == null)
             {
@@ -1149,7 +1187,7 @@ namespace DataAccess.Repository.Services
                 ProcurementName = procurementPackage.Name,
                 ProcurementCode = procurementPackage.Code,
                 ExpirationDate = procurementPackage.ExpirationDate,
-                LivestockQuantity = batchExports?.BatchExportDetails.Count()??0,
+                LivestockQuantity = listBatchExportDetails1?.Count() ?? 0,
                 diseaseRequiresForSpecie = listDiseaseRequiresForSpecie,
             };
             return requireVaccinationProcurementDetail;
@@ -1162,21 +1200,26 @@ namespace DataAccess.Repository.Services
             {
                 throw new Exception("Không tìm thấy vật nuôi này");
             }
-            var filteredBatchVaccinations = _context.BatchVaccinations
-                .Include(x => x.Vaccine)
-                    .ThenInclude(v => v.DiseaseMedicines)
-                        .ThenInclude(dm => dm.Disease)
-                .Include(x => x.BatchVaccinationProcurement)
-                    .ThenInclude(bvpd => bvpd.ProcurementDetail)
-                .Where(x => x.BatchVaccinationProcurement
-                    .Any(bvpd => bvpd.ProcurementDetail.ProcurementPackageId == procurementId))
-                .ToList();
-            var listDisease = filteredBatchVaccinations
-                .SelectMany(b => b.Vaccine.DiseaseMedicines)
-                .Select(dm => dm.Disease)
-                .Where(d => d != null)
-                .Distinct()
-                .ToList();
+            bool hasLivestockId = _context.ProcurementPackages
+                     .Where(x => x.Id == procurementId)
+                     .Any(x => x.BatchExports
+                         .Any(b => b.BatchExportDetails
+                             .Any(d => d.LivestockId == livestockId)
+                         )
+                     );
+            if(hasLivestockId ==false)
+            {
+                throw new Exception("Vật nuôi không thuộc lô xuất của gói thầu này");
+            }
+            List<Disease> listDisease = _context.VaccinationRequirement
+    .Include(x => x.ProcurementDetail)
+        .ThenInclude(d => d.ProcurementPackage)
+    .Include(x => x.ProcurementDetail)
+        .ThenInclude(d => d.Species)
+    .Where(x => x.ProcurementDetail.ProcurementPackage.Id == procurementId
+             && x.ProcurementDetail.Species.Id == livestock.Species.Id).Select(x=>x.Disease)
+    .ToList();
+
             // 1. Lấy danh sách bệnh đã tiêm từ LivestockVaccination (tiêm theo lô)
             List<Disease> vaccinatedDiseasesFromBatch = _context.LivestockVaccinations
                 .Include(x => x.BatchVaccination)
@@ -1214,11 +1257,13 @@ namespace DataAccess.Repository.Services
                 .Where(d => !listVaccinatedDisease.Any(vd => vd.Id == d.Id))
                 .ToList();
 
-            List<string> unvaccinatedDiseaseIds = listUnvaccinatedDiseases
+            //List<string> unvaccinatedDiseaseIds = listUnvaccinatedDiseases
+            //    .Select(d => d.Id)
+            //    .ToList();
+            
+            List<string> unvaccinatedDiseaseIds = listDisease
                 .Select(d => d.Id)
                 .ToList();
-
-
             var listBatchVaccinations = _context.BatchVaccinations
                 .Include(x => x.Vaccine)
                     .ThenInclude(v => v.DiseaseMedicines)
@@ -1236,16 +1281,26 @@ namespace DataAccess.Repository.Services
                 .ToList();
 
             List<LivestockRequireDisease> listLivestockRequireDiseases = new List<LivestockRequireDisease>();
-            foreach (BatchVaccination batchVaccination in listBatchVaccinations)
+            foreach (Disease disease in listDisease)
             {
+                if (listVaccinatedDisease.Any(d => d.Id == disease.Id))
+                {
+                    continue;
+                }
+
+                BatchVaccination batchVaccination = listBatchVaccinations
+                    .FirstOrDefault(x => x.Vaccine?.DiseaseMedicines?.FirstOrDefault()?.Disease?.Id == disease.Id);
+
                 LivestockRequireDisease livestockRequireDisease = new LivestockRequireDisease
                 {
-                    DiseaseName = batchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault().Disease.Name,
-                    MedicineName = batchVaccination.Vaccine.Name,
-                    BatchVaccinationId = batchVaccination.Id
+                    DiseaseName = disease.Name,
+                    MedicineName = batchVaccination?.Vaccine?.Name ?? "N/A",
+                    BatchVaccinationId = batchVaccination?.Id ?? "N/A",
                 };
+
                 listLivestockRequireDiseases.Add(livestockRequireDisease);
             }
+
             LivestockRequireVaccinationProcurement result = new LivestockRequireVaccinationProcurement
             {
                 LivestockId = livestock.Id,
@@ -1263,21 +1318,27 @@ namespace DataAccess.Repository.Services
             {
                 throw new Exception("Không tìm thấy vật nuôi này");
             }
-            var filteredBatchVaccinations = _context.BatchVaccinations
-                .Include(x => x.Vaccine)
-                    .ThenInclude(v => v.DiseaseMedicines)
-                        .ThenInclude(dm => dm.Disease)
-                .Include(x => x.BatchVaccinationProcurement)
-                    .ThenInclude(bvpd => bvpd.ProcurementDetail)
-                .Where(x => x.BatchVaccinationProcurement
-                    .Any(bvpd => bvpd.ProcurementDetail.ProcurementPackageId == procurementId))
-                .ToList();
-            var listDisease = filteredBatchVaccinations
-                .SelectMany(b => b.Vaccine.DiseaseMedicines)
-                .Select(dm => dm.Disease)
-                .Where(d => d != null)
-                .Distinct()
-                .ToList();
+
+            bool hasLivestockId = _context.ProcurementPackages
+                     .Where(x => x.Id == procurementId)
+                     .Any(x => x.BatchExports
+                         .Any(b => b.BatchExportDetails
+                             .Any(d => d.LivestockId == livestock.Id)
+                         )
+                     );
+            if (hasLivestockId == false)
+            {
+                throw new Exception("Vật nuôi không thuộc lô xuất của gói thầu này");
+            }
+            List<Disease> listDisease = _context.VaccinationRequirement
+    .Include(x => x.ProcurementDetail)
+        .ThenInclude(d => d.ProcurementPackage)
+    .Include(x => x.ProcurementDetail)
+        .ThenInclude(d => d.Species)
+    .Where(x => x.ProcurementDetail.ProcurementPackage.Id == procurementId
+             && x.ProcurementDetail.Species.Id == livestock.Species.Id).Select(x => x.Disease)
+    .ToList();
+
             // 1. Lấy danh sách bệnh đã tiêm từ LivestockVaccination (tiêm theo lô)
             List<Disease> vaccinatedDiseasesFromBatch = _context.LivestockVaccinations
                 .Include(x => x.BatchVaccination)
@@ -1315,10 +1376,13 @@ namespace DataAccess.Repository.Services
                 .Where(d => !listVaccinatedDisease.Any(vd => vd.Id == d.Id))
                 .ToList();
 
-            List<string> unvaccinatedDiseaseIds = listUnvaccinatedDiseases
+            //List<string> unvaccinatedDiseaseIds = listUnvaccinatedDiseases
+            //    .Select(d => d.Id)
+            //    .ToList();
+
+            List<string> unvaccinatedDiseaseIds = listDisease
                 .Select(d => d.Id)
                 .ToList();
-
             var listBatchVaccinations = _context.BatchVaccinations
                 .Include(x => x.Vaccine)
                     .ThenInclude(v => v.DiseaseMedicines)
@@ -1334,17 +1398,28 @@ namespace DataAccess.Repository.Services
                     )
                 )
                 .ToList();
+
             List<LivestockRequireDisease> listLivestockRequireDiseases = new List<LivestockRequireDisease>();
-            foreach (BatchVaccination batchVaccination in listBatchVaccinations)
+            foreach (Disease disease in listDisease)
             {
+                if (listVaccinatedDisease.Any(d => d.Id == disease.Id))
+                {
+                    continue;
+                }
+
+                BatchVaccination batchVaccination = listBatchVaccinations
+                    .FirstOrDefault(x => x.Vaccine?.DiseaseMedicines?.FirstOrDefault()?.Disease?.Id == disease.Id);
+
                 LivestockRequireDisease livestockRequireDisease = new LivestockRequireDisease
                 {
-                    DiseaseName = batchVaccination.Vaccine.DiseaseMedicines.FirstOrDefault().Disease.Name,
-                    MedicineName = batchVaccination.Vaccine.Name,
-                    BatchVaccinationId = batchVaccination.Id
+                    DiseaseName = disease.Name,
+                    MedicineName = batchVaccination?.Vaccine?.Name ?? "N/A",
+                    BatchVaccinationId = batchVaccination?.Id ?? "N/A",
                 };
+
                 listLivestockRequireDiseases.Add(livestockRequireDisease);
             }
+
             LivestockRequireVaccinationProcurement result = new LivestockRequireVaccinationProcurement
             {
                 LivestockId = livestock.Id,
@@ -1374,7 +1449,7 @@ namespace DataAccess.Repository.Services
             //{
             //    throw new Exception("Vật nuôi đã thuộc 1 lô tiêm khác");
             //}
-            _context.BatchVaccinations
+           await _context.BatchVaccinations
     .Where(x => x.Id == livestockVaccinationAddByInspectionCode.BatchVaccinationId)
     .ExecuteUpdateAsync(x => x.SetProperty(b => b.Status, batch_vaccination_status.ĐANG_THỰC_HIỆN));
             LivestockVaccination livestockVaccination = new LivestockVaccination();
@@ -1466,6 +1541,40 @@ namespace DataAccess.Repository.Services
             }
             throw new Exception("Vật nuôi này không tồn tại");
 
+        }
+
+        public async Task<bool> AddLivestockVacinationToVacinationBatchByInspectionCode(LivestockVaccinationAddByInspectionCode livestockVaccinationAddbyInspectionCode)
+        {
+            var batchVacination = await _context.BatchVaccinations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == livestockVaccinationAddbyInspectionCode.BatchVaccinationId);
+            if (batchVacination == null)
+            {
+                throw new Exception("Lô tiêm vắc xin không tồn tại");
+            }
+            var livestock = await _context.Livestocks.AsNoTracking().FirstOrDefaultAsync(x => x.InspectionCode == livestockVaccinationAddbyInspectionCode.InspectionCoded && x.Species.Type == livestockVaccinationAddbyInspectionCode.Specie_Type);
+            if (livestock == null)
+            {
+                throw new Exception("Con vật không tồn tại");
+            }
+            List<LivestockVaccination> existLivestock = _context.LivestockVaccinations.Include(x => x.Livestock)
+                .ThenInclude(x => x.Species).Where(x => x.Livestock.InspectionCode == livestockVaccinationAddbyInspectionCode.InspectionCoded && x.Livestock.Species.Type == livestockVaccinationAddbyInspectionCode.Specie_Type).ToList();
+            //if (existLivestock.Any())
+            //{
+            //    throw new Exception("Vật nuôi đã thuộc 1 lô tiêm khác");
+            //}
+       await     _context.BatchVaccinations
+    .Where(x => x.Id == livestockVaccinationAddbyInspectionCode.BatchVaccinationId)
+    .ExecuteUpdateAsync(x => x.SetProperty(b => b.Status, batch_vaccination_status.ĐANG_THỰC_HIỆN));
+            LivestockVaccination livestockVaccination = new LivestockVaccination();
+            livestockVaccination.Id = SlugId.New();
+            livestockVaccination.BatchVaccinationId = livestockVaccinationAddbyInspectionCode.BatchVaccinationId;
+            livestockVaccination.LivestockId = livestock.Id;
+            livestockVaccination.UpdatedAt = DateTime.Now;
+            livestockVaccination.CreatedBy = livestockVaccinationAddbyInspectionCode.CreatedBy;
+            livestockVaccination.UpdatedBy = livestockVaccinationAddbyInspectionCode.CreatedBy;
+            livestockVaccination.CreatedAt = DateTime.Now;
+            await _context.LivestockVaccinations.AddAsync(livestockVaccination);
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

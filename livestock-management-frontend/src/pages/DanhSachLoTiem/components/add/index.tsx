@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Calendar,
   Save,
@@ -11,7 +11,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -43,23 +42,47 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   useGetListLoaiTiem,
   useGetLoaiDichBenh,
-  useGetThuoc,
   useTaoChiTietLoTiemVacxin
 } from '@/queries/vacxin.query';
 import { toast } from '@/components/ui/use-toast';
-import { useGetNguoiThucHien } from '@/queries/admin.query';
+import {
+  useGetNguoiThucHien,
+  useGetThuocTheoLoaiBenh
+} from '@/queries/admin.query';
+import __helpers from '@/helpers';
 
 export default function AddForm() {
   const [date, setDate] = useState<Date | undefined>(new Date('2024-03-18'));
   const { data: loaiTiem } = useGetListLoaiTiem();
   const { data: loaiDichBenh } = useGetLoaiDichBenh();
-  const { data: loaiThuoc } = useGetThuoc();
+  // const { data: loaiThuoc } = useGetThuoc();
   const { mutateAsync: taoLoTiem } = useTaoChiTietLoTiemVacxin();
   const [medicines, setMedicines] = useState([{ id: 1, vaccineId: '' }]);
   const { mutateAsync: getNguoiThucHien } = useGetNguoiThucHien();
   const [availablePersonnel, setAvailablePersonnel] = useState([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const diseaseName =
+    __helpers.localStorage_get('diseaseName') || 'Lở mồm long móng';
+  const [loaiBenh, setLoaiBenh] = useState<string | null>('');
+  console.log('loanh  benh', loaiBenh);
+  const { data: loaiThuoc } = useGetThuocTheoLoaiBenh(loaiBenh as string);
+  const diseaseId = __helpers.localStorage_get('diseaseId') || 'disease-123';
+
+  useEffect(() => {
+    // Initialize form data with default values
+    setFormData((prev) => ({
+      ...prev,
+      diseaseId: diseaseId,
+      name: `Tiêm chuẩn bị bàn giao cho gói thầu thử nghiệm`,
+      vaccineId: loaiThuoc?.[0]?.id || '',
+      conductedBy: 'QUAN_TRAI', // Default to QUAN_TRAI
+      type: 2
+    }));
+    // Initialize medicines with the first medicine
+    setMedicines([{ id: 1, vaccineId: loaiThuoc?.[0]?.id || '' }]);
+  }, [diseaseId, diseaseName]);
+  // Initialize form data with default values
 
   const [formData, setFormData] = useState({
     name: 'Tiêm phòng Lở mồm long móng',
@@ -159,11 +182,17 @@ export default function AddForm() {
         description: formData.description,
         type: formData.type,
         status: formData.status,
-        createdBy: 'USER' // You might want to get this from user context
+        procurementId: __helpers.localStorage_get('procurementId') || '',
+        specieId: __helpers.localStorage_get('specieId') || '',
+        createdBy: __helpers.getUserId()
       };
 
       const [err] = await taoLoTiem(payload);
       if (!err) {
+        __helpers.localStorage_delete('diseaseName');
+        __helpers.localStorage_delete('diseaseId');
+        __helpers.localStorage_delete('specieId');
+        __helpers.localStorage_delete('procurementId');
         toast({
           title: 'Thành công',
           description: 'Tạo lô tiêm thành công!',
@@ -288,9 +317,10 @@ export default function AddForm() {
                   </Label>
                   <Select
                     value={formData.diseaseId}
-                    onValueChange={(value) =>
-                      handleInputChange('diseaseId', value)
-                    }
+                    onValueChange={(value) => {
+                      setLoaiBenh(value);
+                      handleInputChange('diseaseId', value);
+                    }}
                   >
                     <SelectTrigger
                       className={
@@ -418,21 +448,6 @@ export default function AddForm() {
                     </p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="disease"
-                    className="flex items-center gap-2 text-sm font-medium"
-                  >
-                    <Virus className="h-4 w-4" />
-                    Phòng bệnh
-                  </Label>
-                  <Input
-                    id="disease"
-                    value="Lở mồm long móng"
-                    readOnly
-                    className="bg-slate-50 dark:bg-slate-800/50"
-                  />
-                </div>
               </div>
             </div>
 
@@ -456,9 +471,11 @@ export default function AddForm() {
                       <div className="flex items-center gap-2">
                         <Syringe className="h-5 w-5" />
                         <h4 className="font-medium">
-                          Loại thuốc{' '}
+                          Loại thuốc
                           {medicines.length > 1 ? `#${index + 1}` : ''}{' '}
-                          <span className="text-red-500">*</span>
+                          <span className="text-red-500">
+                            (Chọn loại bệnh trước)*
+                          </span>
                         </h4>
                       </div>
                       <Select

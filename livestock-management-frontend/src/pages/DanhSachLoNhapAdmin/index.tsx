@@ -2,7 +2,7 @@ import BasePages from '@/components/shared/base-pages.js';
 import { OverViewTab } from './components/overview/index.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AddForm from './components/add/index.js';
-import { Pin } from './components/pin/index.js';
+import { PinPage } from './components/pin/index.js';
 
 export default function DanhSachLoNhapAdmin() {
   return (
@@ -15,14 +15,14 @@ export default function DanhSachLoNhapAdmin() {
         ]}
       >
         <div className="top-4 flex items-center justify-between space-y-2 "></div>
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs defaultValue="pin" className="space-y-4">
           <TabsList>
             <TabsTrigger value="pin">Ghim</TabsTrigger>
             <TabsTrigger value="overview">Danh sách lô nhập</TabsTrigger>
             <TabsTrigger value="add">Tạo lô nhập</TabsTrigger>
           </TabsList>
           <TabsContent value="pin" className="space-y-4">
-            <Pin />
+            <PinPage />
           </TabsContent>
           <TabsContent value="overview" className="space-y-4">
             <OverViewTab />

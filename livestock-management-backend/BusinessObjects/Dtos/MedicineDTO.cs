@@ -60,6 +60,7 @@ namespace BusinessObjects.Dtos
 
         [MaxLength(100, ErrorMessage = "Tên người tạo không được vượt quá 100 ký tự")]
         public string CreatedBy { get; set; } = string.Empty;
+        public string DisiseaId { get; set; }
     }
 
     public class UpdateMedicineDTO
@@ -79,6 +80,7 @@ namespace BusinessObjects.Dtos
 
         [MaxLength(100, ErrorMessage = "Tên người cập nhật không được vượt quá 100 ký tự")]
         public string UpdatedBy { get; set; } = string.Empty;
+        public string DiseaseId { get; set; }
     }
     public class MedicinesFliter : CommonListFilterModel
     {

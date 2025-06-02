@@ -20,7 +20,7 @@ namespace DataAccess.Repository.Interfaces
 
         Task<ProcurementSummary> UpdateProcurementPackage(UpdateProcurementPackageRequest request);
 
-        Task<Stream> GetTemplateListCustomers(string id);
+        Task<string> GetTemplateListCustomers(string id);
 
         Task ImportListCustomers(string procurementId, string requestedBy, IFormFile file);
 
@@ -33,5 +33,8 @@ namespace DataAccess.Repository.Interfaces
         Task<ListExportDetails> GetListExportDetails(string id);
 
         Task<DataTable> GetEmpData(string procurementID);
+        Task<List<HandOverProcessProcurement>> GetProcessHandOverProcurementList();
+        Task<bool> AcceptProcurementPackage(ProcurementStatus status);
+        Task<ProcurementOverview> GetPrucrementPreview();
     }
 }

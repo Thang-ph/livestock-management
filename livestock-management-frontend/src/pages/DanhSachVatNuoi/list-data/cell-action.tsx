@@ -1,7 +1,5 @@
 'use client';
 import { GeminiAnalysisDialog } from '@/components/shared/gemini-analysis';
-import { Button } from '@/components/ui/button';
-import { useRouter } from '@/routes/hooks';
 interface UserCellActionProps {
   data: {
     id: number;
@@ -12,8 +10,6 @@ interface UserCellActionProps {
 }
 
 export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
-  const router = useRouter();
-
   const makePrompt = (data: any) => {
     return `
 Bạn là chuyên gia chăn nuôi, hãy phân tích các chỉ số bên dưới và đưa ra nhận xét chi tiết về con vật này để hỗ trợ người nông dân hiểu rõ tiềm năng kinh tế của nó.
@@ -41,9 +37,6 @@ Yêu cầu:
           generatePrompt={makePrompt}
           label="Phân tích vật nuôi"
         />
-        <Button onClick={() => router.push(`/chi-tiet-lo-nhap/${data.id}`)}>
-          Xem chi tiết
-        </Button>
       </div>
     </>
   );

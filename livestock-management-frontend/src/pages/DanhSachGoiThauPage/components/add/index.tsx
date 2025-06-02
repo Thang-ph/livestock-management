@@ -13,13 +13,49 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useCreateGoiThau, useGetSpecie } from '@/queries/admin.query';
-import { Plus, Trash2, Save, FileText, Settings, Package } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Save,
+  FileText,
+  Settings,
+  Package,
+  Shield
+} from 'lucide-react';
 import __helpers from '@/helpers';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useGetLoaiBenh } from '@/queries/benh.query';
+
+type VaccinationRequirement = {
+  diseaseId: string;
+  insuranceDuration: number;
+};
+
+type TechnicalRequirement = {
+  speciesId: string;
+  requiredWeightMin: number;
+  requiredWeightMax: number;
+  requiredAgeMin: number;
+  requiredAgeMax: number;
+  requiredInsuranceDuration: number;
+  requiredQuantity: number;
+  description: string;
+  vaccinationRequireProcurementDetailCreates: VaccinationRequirement[];
+};
+
+type FormData = {
+  code: string;
+  name: string;
+  owner: string;
+  expiredDuration: number;
+  description: string;
+  details: TechnicalRequirement[];
+  requestedBy: string;
+};
 
 export default function AddForm() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     code: '',
     name: '',
     owner: '',
@@ -34,7 +70,8 @@ export default function AddForm() {
         requiredAgeMax: 36,
         requiredInsuranceDuration: 21,
         requiredQuantity: 100,
-        description: ''
+        description: '',
+        vaccinationRequireProcurementDetailCreates: []
       }
     ],
     requestedBy: __helpers.getUserEmail()
@@ -43,6 +80,9 @@ export default function AddForm() {
   const { toast } = useToast();
   const { data } = useGetSpecie();
   const { mutateAsync: createGoiThau } = useCreateGoiThau();
+  const { data: resListLoaiBenh } = useGetLoaiBenh();
+  const listLoaiBenh = resListLoaiBenh?.items || [];
+  console.log('listLoaiBenh', listLoaiBenh);
   const listDanhMuc = data?.data || [];
 
   const handleInputChange = (field, value) => {
@@ -74,7 +114,8 @@ export default function AddForm() {
           requiredAgeMax: 36,
           requiredInsuranceDuration: 21,
           requiredQuantity: 100,
-          description: ''
+          description: '',
+          vaccinationRequireProcurementDetailCreates: []
         }
       ]
     }));
@@ -86,6 +127,98 @@ export default function AddForm() {
     setFormData((prev) => ({
       ...prev,
       details: prev.details.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addVaccinationRequirement = (detailIndex) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      details: prev.details.map((detail, i) =>
+        i === detailIndex
+          ? {
+              ...detail,
+              vaccinationRequireProcurementDetailCreates: [
+                ...detail.vaccinationRequireProcurementDetailCreates,
+                {
+                  diseaseId: '',
+                  insuranceDuration: 0
+                }
+              ]
+            }
+          : detail
+      )
+    }));
+  };
+
+  const removeVaccinationRequirement = (detailIndex, vaccinationIndex) => {
+    setFormData((prev) => ({
+      ...prev,
+      details: prev.details.map((detail, i) =>
+        i === detailIndex
+          ? {
+              ...detail,
+              vaccinationRequireProcurementDetailCreates:
+                detail.vaccinationRequireProcurementDetailCreates.filter(
+                  (_, j) => j !== vaccinationIndex
+                )
+            }
+          : detail
+      )
+    }));
+  };
+
+  const handleVaccinationChange = (
+    detailIndex,
+    vaccinationIndex,
+    field,
+    value
+  ) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      details: prev.details.map((detail, i) =>
+        i === detailIndex
+          ? {
+              ...detail,
+              vaccinationRequireProcurementDetailCreates:
+                detail.vaccinationRequireProcurementDetailCreates.map(
+                  (vaccination, j) =>
+                    j === vaccinationIndex
+                      ? { ...vaccination, [field]: value }
+                      : vaccination
+                )
+            }
+          : detail
+      )
+    }));
+  };
+
+  const handleDiseaseChange = (detailIndex, vaccinationIndex, diseaseId) => {
+    const selectedDisease = listLoaiBenh.find(
+      (disease) => disease.id === diseaseId
+    );
+    const defaultInsuranceDuration =
+      selectedDisease?.defaultInsuranceDuration || 0;
+
+    setFormData((prev: any) => ({
+      ...prev,
+      details: prev.details.map((detail, i) =>
+        i === detailIndex
+          ? {
+              ...detail,
+              vaccinationRequireProcurementDetailCreates:
+                detail.vaccinationRequireProcurementDetailCreates.map(
+                  (vaccination, j) =>
+                    j === vaccinationIndex
+                      ? {
+                          ...vaccination,
+                          diseaseId: diseaseId,
+                          insuranceDuration: defaultInsuranceDuration
+                        }
+                      : vaccination
+                )
+            }
+          : detail
+      )
     }));
   };
 
@@ -103,12 +236,32 @@ export default function AddForm() {
           requiredAgeMin: Number(detail.requiredAgeMin),
           requiredAgeMax: Number(detail.requiredAgeMax),
           requiredInsuranceDuration: Number(detail.requiredInsuranceDuration),
-          requiredQuantity: Number(detail.requiredQuantity)
+          requiredQuantity: Number(detail.requiredQuantity),
+          vaccinationRequireProcurementDetailCreates:
+            detail.vaccinationRequireProcurementDetailCreates.map(
+              (vaccination: any) => ({
+                ...vaccination,
+                insuranceDuration: Number(vaccination.insuranceDuration)
+              })
+            )
         }))
       };
 
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+
       // Submit the data
-      await createGoiThau(payload);
+      const [err] = await createGoiThau(payload);
+
+      if (err) {
+        console.error('Error creating package:', err);
+        toast({
+          title: 'Lỗi',
+          description: err.data?.data || 'Không thể tạo gói thầu',
+          variant: 'destructive',
+          duration: 3000
+        });
+        return;
+      }
 
       toast({
         title: 'Đã lưu thành công',
@@ -116,11 +269,11 @@ export default function AddForm() {
         variant: 'success',
         duration: 3000
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting form:', error);
       toast({
         title: 'Lỗi',
-        description: 'Có lỗi xảy ra khi lưu thông tin gói thầu',
+        description: error?.data?.data || 'Không thể lưu gói thầu',
         variant: 'destructive',
         duration: 3000
       });
@@ -274,7 +427,7 @@ export default function AddForm() {
                   <div className="space-y-4">
                     <div className="grid gap-2">
                       <label className="text-sm font-medium text-gray-700">
-                        Danh mục hàng hóa
+                        Danh mục loài vật
                       </label>
                       <Select
                         value={detail.speciesId}
@@ -283,7 +436,7 @@ export default function AddForm() {
                         }
                       >
                         <SelectTrigger className="rounded-md border-gray-200 bg-white shadow-sm focus:ring-teal-500">
-                          <SelectValue placeholder="Chọn danh mục" />
+                          <SelectValue placeholder="Chọn loài vật" />
                         </SelectTrigger>
                         <SelectContent>
                           {listDanhMuc?.map((item) => (
@@ -417,6 +570,127 @@ export default function AddForm() {
                         }
                         placeholder="Nhập các điều kiện và yêu cầu khác"
                       />
+                    </div>
+
+                    {/* Vaccination Requirements Section */}
+                    <div className="border-t border-gray-100 pt-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-blue-600" />
+                          <label className="text-sm font-medium text-gray-700">
+                            Yêu cầu tiêm phòng bệnh
+                          </label>
+                        </div>
+                        <Button
+                          onClick={() => addVaccinationRequirement(index)}
+                          variant="outline"
+                          size="sm"
+                          className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                        >
+                          <Plus className="mr-1 h-4 w-4" />
+                          Thêm bệnh
+                        </Button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {detail.vaccinationRequireProcurementDetailCreates.map(
+                          (vaccination, vaccinationIndex) => (
+                            <div
+                              key={vaccinationIndex}
+                              className="rounded-lg border border-blue-100 bg-blue-50/30 p-3"
+                            >
+                              <div className="mb-2 flex items-center justify-between">
+                                <Badge
+                                  variant="outline"
+                                  className="border-blue-200 bg-blue-50 text-blue-700"
+                                >
+                                  Bệnh #{vaccinationIndex + 1}
+                                </Badge>
+                                <Button
+                                  onClick={() =>
+                                    removeVaccinationRequirement(
+                                      index,
+                                      vaccinationIndex
+                                    )
+                                  }
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 rounded-full p-0 text-red-500 hover:bg-red-50 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="grid gap-1">
+                                  <label className="text-xs font-medium text-gray-600">
+                                    Loại bệnh
+                                  </label>
+                                  <Select
+                                    value={vaccination.diseaseId}
+                                    onValueChange={(value) =>
+                                      handleDiseaseChange(
+                                        index,
+                                        vaccinationIndex,
+                                        value
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 rounded-md border-gray-200 bg-white text-xs shadow-sm focus:ring-blue-500">
+                                      <SelectValue placeholder="Chọn bệnh" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {listLoaiBenh?.map((disease) => (
+                                        <SelectItem
+                                          key={disease.id}
+                                          value={disease.id}
+                                        >
+                                          <div className="flex flex-col">
+                                            <span className="font-medium">
+                                              {disease.name}
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                              Mặc định:{' '}
+                                              {disease.defaultInsuranceDuration}{' '}
+                                              ngày
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="grid gap-1">
+                                  <label className="text-xs font-medium text-gray-600">
+                                    Thời gian bảo hành (ngày)
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    className="h-8 rounded-md border-gray-200 bg-white text-center text-xs shadow-sm focus-visible:ring-blue-500"
+                                    value={vaccination.insuranceDuration}
+                                    onChange={(e) =>
+                                      handleVaccinationChange(
+                                        index,
+                                        vaccinationIndex,
+                                        'insuranceDuration',
+                                        e.target.value
+                                      )
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        )}
+
+                        {detail.vaccinationRequireProcurementDetailCreates
+                          .length === 0 && (
+                          <div className="rounded-lg border-2 border-dashed border-gray-200 p-4 text-center text-sm text-gray-500">
+                            Chưa có yêu cầu tiêm phòng bệnh nào
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

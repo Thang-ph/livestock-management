@@ -17,7 +17,6 @@
 
         public enum livestock_status
         {
-            TRỐNG,
             CHỜ_NHẬP,
             CHỜ_ĐỊNH_DANH,
             KHỎE_MẠNH,
@@ -26,6 +25,7 @@
             ĐÃ_XUẤT,
             CHẾT,
             XUẤT_BÁN_THỊT,
+            TRỐNG,
         }
 
         public enum batch_export_status
@@ -193,6 +193,6 @@
             LOW
         }
          
-        public static String urlDeploy = "lms.com/";
+        public static String urlDeploy = "baohanh.hoptacxaluavang.site/";
     }
 }

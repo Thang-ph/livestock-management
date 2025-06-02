@@ -61,8 +61,13 @@ namespace DataAccess.AutoServices
                                 continue;
                             }
                             decimal weightOrigin = livestock.WeightOrigin ?? 0;
+                            decimal weightEstimate = livestock.WeightEstimate ?? 0;
                             decimal growthRate = dicSpecies.TryGetValue(livestock.SpeciesId, out var rate) ? rate : 0;
-                            livestock.WeightEstimate = weightOrigin + weightOrigin * growthRate / 100;
+                            livestock.WeightEstimate = weightEstimate == 0 ?
+                                (weightOrigin == 0 ?
+                                null : 
+                                weightOrigin  + weightOrigin * growthRate / 100) :
+                                weightEstimate + weightEstimate * growthRate / 100;
                             livestock.UpdatedAt = DateTime.Now;
                         }
                         await context.SaveChangesAsync();

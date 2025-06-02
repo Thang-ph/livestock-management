@@ -5,7 +5,12 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Data;
 using static BusinessObjects.Constants.LmsConstants;
-using ClosedXML.Excel;
+//using ClosedXML.Excel;
+using DataAccess.Repository.Services;
+using DocumentFormat.OpenXml.Spreadsheet;
+using System.IO.Packaging;
+using OfficeOpenXml;
+
 namespace LivestockManagementSystemAPI.Controllers
 {
     [Route("api/procurement-management")]
@@ -100,7 +105,40 @@ namespace LivestockManagementSystemAPI.Controllers
                 return GetError(ex.Message);
             }
         }
-
+        [HttpGet("get-process-handover-procurement-list")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<List<ProcurementGeneralInfo>>> GetProcessHandOverProcurementList()
+        {
+            try
+            {
+                var data = await _procurementRepository.GetProcessHandOverProcurementList();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetProcessHandOverProcurementList)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+        [HttpGet("get-procurement-overview")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ProcurementOverview>> GetPrucrementPreview()
+        {
+            try
+            {
+                var data = await _procurementRepository.GetPrucrementPreview();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetPrucrementPreview)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
         /// <summary>
         /// Tạo một gói thầu mới
         /// </summary>
@@ -382,6 +420,25 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
+        [HttpPost("accept-procurment")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> AcceptProcurementPackage([FromBody] ProcurementStatus status)
+        {
+            try
+            {
+                var changeProcurementStatusModel = await _procurementRepository.AcceptProcurementPackage(status);
+                return SaveSuccess(changeProcurementStatusModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(CancelProcurementPackage)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
         /// <summary>
         /// Hoàn thành gói thầu
         /// </summary>
@@ -463,17 +520,24 @@ namespace LivestockManagementSystemAPI.Controllers
                     return GetError("Không tìm thấy vật nuôi phù hợp");
                 }
 
-                var folderName = "livestocks-suggestion";
-                var filename = $"Danh sách vật nuôi đề xuất_{DateTime.Now.ToString("yyyyMMddhhmmss")}.xlsx";
-                string tempFilePath = Path.Combine(Path.GetTempPath(), $"{filename}x");
-                using (XLWorkbook wb = new XLWorkbook())
-                {
+                //var folderName = "livestocks-suggestion";
+                var fileName = $"Danh sách vật nuôi đề xuất_{DateTime.Now.ToString("yyyyMMddhhmmss")}.xlsx";
+                //string tempFilePath = Path.Combine(Path.GetTempPath(), $"{filename}x");
+                //using (XLWorkbook wb = new XLWorkbook())
+                //{
 
-                    var ws = wb.AddWorksheet(filteredData, "Vật nuôi đề xuất");
-                    ws.Columns().AdjustToContents();
-                    wb.SaveAs(tempFilePath);
+                //    var ws = wb.AddWorksheet(filteredData, "Vật nuôi đề xuất");
+                //    ws.Columns().AdjustToContents();
+                //    wb.SaveAs(tempFilePath);
 
-                    var url = await _cloudinaryRepository.UploadFileToFolderAsync(tempFilePath, folderName, filename);
+                    ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                    using var package = new ExcelPackage(new MemoryStream());
+                    var worksheet = package.Workbook.Worksheets.Add($"Danh sách vật nuôi đề xuất");
+                    worksheet.Cells["A1"].LoadFromDataTable(filteredData, true);
+                    await package.SaveAsync();
+                    var stream = package.Stream;
+                    stream.Position = 0;
+                    var url = await _cloudinaryRepository.UploadFileStreamAsync(CloudFolderFileTemplateName, fileName, stream);
                     return GetSuccess(new { Url = url });
 
                     //using (MemoryStream ms = new MemoryStream())
@@ -483,7 +547,7 @@ namespace LivestockManagementSystemAPI.Controllers
                     //        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     //        filename);
                     //}
-                }
+                //}
             }
             catch (Exception ex)
             {
@@ -508,15 +572,12 @@ namespace LivestockManagementSystemAPI.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult> GetTemplateListCustomers([FromRoute] string id)
+        public async Task<ActionResult<string>> GetTemplateListCustomers([FromRoute] string id)
         {
             try
             {
-                var filename = "Mẫu danh sách khách hàng_" + DateTime.Now.ToString("ddMMyyyy") + ".xlsx";
-                var stream = await _procurementRepository.GetTemplateListCustomers(id);
-                var contentType = "application/xlsx";
-                stream.Position = 0;
-                return File(stream, contentType, filename);
+                var data = await _procurementRepository.GetTemplateListCustomers(id);
+                return GetSuccess(data);
             }
             catch (Exception ex)
             {

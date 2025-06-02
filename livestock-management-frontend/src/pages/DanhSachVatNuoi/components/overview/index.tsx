@@ -19,7 +19,7 @@ export function OverViewTab() {
   return (
     <>
       <div className="grid gap-6 rounded-md p-4 pt-0 ">
-        <h1 className="text-center font-bold">DANH SÁCH VẬT NUÔI</h1>
+        <h1 className="text-center font-bold">DANH SÁCH LOÀI VẬT NUÔI</h1>
         {isPending ? (
           <div className="p-5">
             <DataTableSkeleton

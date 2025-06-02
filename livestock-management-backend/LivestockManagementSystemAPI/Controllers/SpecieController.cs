@@ -408,6 +408,23 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
 
+        [HttpGet("get-specie-by-id/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<SpecieDTO?>> GetSpecieById([FromRoute] string id)
+        {
+            try
+            {
+                var data = await _specieService.GetByIdAsync(id);
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetSpecieById)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
         [HttpGet("get-list-specie-name/{type}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]

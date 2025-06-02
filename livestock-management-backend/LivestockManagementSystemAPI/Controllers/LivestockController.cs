@@ -541,14 +541,13 @@ namespace LivestockManagementSystemAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<bool>> CreateEmptyLivestockRecords([FromForm] string requestedBy,
-            [FromForm] int quantity)
+        public async Task<ActionResult<bool>> CreateEmptyLivestockRecords([FromBody] CreateEmptyRecordRequest request)
         {
             try
             {
-                if (string.IsNullOrEmpty(requestedBy))
-                    requestedBy = UserId;
-                await _livestockRepository.CreateEmptyLivestockRecords(requestedBy, quantity);
+                if (string.IsNullOrEmpty(request.RequestedBy))
+                    request.RequestedBy = UserId;
+                await _livestockRepository.CreateEmptyLivestockRecords(request.RequestedBy, request.Quantity);
                 return SaveSuccess(true);
             }
             catch (Exception ex)

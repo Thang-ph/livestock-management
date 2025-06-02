@@ -1,18 +1,18 @@
-﻿using System.Data;
+﻿using QRCoder;
+using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO.Compression;
 using BusinessObjects;
 using BusinessObjects.ConfigModels;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using ClosedXML.Excel;
 using DataAccess.Repository.Interfaces;
-using DocumentFormat.OpenXml.Office2010.Excel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
 using OfficeOpenXml.Table;
-using QRCoder;
 using static BusinessObjects.Constants.LmsConstants;
 
 namespace DataAccess.Repository.Services
@@ -21,11 +21,13 @@ namespace DataAccess.Repository.Services
     {
         private readonly LmsContext _context;
         private readonly ICloudinaryRepository _cloudinaryService;
+        private readonly IDiseaseRepository _diseaseService;
 
-        public LivestockService(LmsContext context, ICloudinaryRepository cloudinaryService)
+        public LivestockService(LmsContext context, ICloudinaryRepository cloudinaryService, IDiseaseRepository diseaseService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
+            _diseaseService = diseaseService;
         }
 
         public byte[] GenerateQRCode(string text)
@@ -121,8 +123,56 @@ namespace DataAccess.Repository.Services
 
             var livestockDiseases = await _context.MedicalHistories
                 .Include(o => o.Disease)
-                .Where(o => o.Status == medical_history_status.ĐANG_ĐIỀU_TRỊ)
+                .Where(o => o.Status == medical_history_status.CHỜ_KHÁM
+                    ||o.Status == medical_history_status.ĐANG_ĐIỀU_TRỊ
+                    || o.Status == medical_history_status.TÁI_PHÁT)
                 .ToArrayAsync();
+
+            var now = DateTime.Now;
+            //var dicMedicineDisease = await _context.DiseaseMedicines
+            //   .ToDictionaryAsync(o => o.MedicineId, o => o.DiseaseId);
+            var twentyOneDaysAgo = now.AddDays(-21);
+
+            var singleVaccinatedLivestockIds = await _context.SingleVaccination
+                .Where(o => o.CreatedAt >= twentyOneDaysAgo)
+                .Select(o => new
+                {
+                    LivestockId = o.LivestockId,
+                    MedicineId = o.MedicineId,
+                    DiseaseId = _context.DiseaseMedicines
+                        .Where(x => x.MedicineId == o.MedicineId)
+                        .Select(x => x.DiseaseId)
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            // Ngày giới hạn
+
+            // Bước 1: Tạo Dictionary ánh xạ MedicineId → DiseaseId
+            var dicMedicineDisease = await _context.DiseaseMedicines
+                .GroupBy(x => x.MedicineId)
+                .Select(g => new { MedicineId = g.Key, DiseaseId = g.First().DiseaseId })
+                .ToDictionaryAsync(x => x.MedicineId, x => x.DiseaseId);
+
+            // Bước 2: Lấy dữ liệu từ database, chưa xử lý TotalDays và truy vấn lồng
+            var vaccinationData = await _context.LivestockVaccinations
+                .Include(o => o.BatchVaccination)
+                .Where(o => o.BatchVaccination.Status == batch_vaccination_status.HOÀN_THÀNH
+                    && o.BatchVaccination.DateConduct != null)
+                .ToListAsync();
+
+            // Bước 3: Xử lý trong bộ nhớ (in-memory)
+            var livestockVaccination = vaccinationData
+                .Where(o => o.BatchVaccination.DateConduct >= twentyOneDaysAgo)
+                .Select(o => new
+                {
+                    LivestockId = o.LivestockId,
+                    MedicineId = o.BatchVaccination.VaccineId,
+                    DiseaseId = dicMedicineDisease.TryGetValue(o.BatchVaccination.VaccineId, out var diseaseId)
+                        ? diseaseId
+                        : "" // hoặc null, tùy yêu cầu
+                })
+                .ToList();
 
 
             if (filter != null)
@@ -157,11 +207,50 @@ namespace DataAccess.Repository.Services
                         .Where(o => filter.Statuses.Contains(o.Status))
                         .ToArray();
                 }
+                if (filter.DiseaseIds != null && filter.DiseaseIds.Any())
+                {
+                    var livestockIds = livestockDiseases
+                        .Where(o => filter.DiseaseIds.Contains(o.DiseaseId))
+                        .GroupBy(o => o.LivestockId)
+                        .Select(o => o.Key) 
+                        .ToArray();
+                    livestocks = livestocks
+                        .Where(o => livestockIds.Contains(o.Id))
+                        .ToArray();
+                }
+                if (filter.DiseaseVaccinatedIds != null && filter.DiseaseVaccinatedIds.Any())
+                {
+                    var singleVaccinatedIds = singleVaccinatedLivestockIds
+                        .Where(o => filter.DiseaseVaccinatedIds.Contains(o.DiseaseId))
+                        .GroupBy(o => o.LivestockId)
+                        .Select(o => o.Key)
+                        .ToArray();
+                    var vaccinatedIds = livestockVaccination
+                        .Where(o => filter.DiseaseVaccinatedIds.Contains(o.DiseaseId))
+                        .GroupBy(o => o.LivestockId)
+                        .Select(o => o.Key)
+                        .ToArray();
+                    var tmp = singleVaccinatedIds.ToList();
+                    tmp.AddRange(vaccinatedIds.ToList());
+                    singleVaccinatedIds = tmp.Distinct().ToArray();
+                    livestocks = livestocks
+                        .Where(o => tmp.Contains(o.Id))
+                        .ToArray();
+                }
+                if (filter.IsMissingInformation ?? false)
+                {
+                    livestocks = livestocks
+                        .Where(o => string.IsNullOrEmpty(o.Color)
+                            || o.WeightOrigin == null
+                            || o.WeightOrigin == 0
+                            || o.WeightEstimate == null
+                            || o.WeightOrigin == 0
+                            || o.Dob == null)
+                        .ToArray();
+                } 
 
                 livestocks = livestocks
                     .OrderBy(o => o.InspectionCode)
-                    .Skip(filter.Skip)
-                    .Take(filter.Take)
                     .ToArray();
             }
 
@@ -177,7 +266,8 @@ namespace DataAccess.Repository.Services
                     Species = o.Species.Name,
                     Weight = o.WeightEstimate
                 })
-                .OrderBy(o => o.InspectionCode)
+                .OrderBy(o => o.Species)
+                .ThenBy(o => o.InspectionCode)
                 .ToArray();
             result.Total = livestocks.Length;
 
@@ -364,77 +454,22 @@ namespace DataAccess.Repository.Services
 
         public async Task<DashboardLivestock> GetDashboarLivestock()
         {
+            var diseaseRatioSummary = await _diseaseService.GetDiseaseRatios();
+            var vaccinationRatioSummary = await _diseaseService.GetVaccinatedRatios();
+            var inspectionCodeQuantitySummary = new InspectionCodeQuantitySummary
+            {
+                Total = 0
+            };
+            var specieRatioSummary = await GetSpecieRatios();
+            var weightRatioSummary = await GetWeightRatios();
+            var totalDisease = await _diseaseService.GetCurrentDiseaseQuantity();
+            var totalLivestockMissingInfor = await GetLivestockMissingInforQuantity();
             var result = new DashboardLivestock()
             {
-                DiseaseRatioSummary = new DiseaseRatioSummary
-                {
-                    Items = new List<DiseaseRatio>
-                    {
-                        new DiseaseRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Lở mồm long móng",
-                            Quantity = 1,
-                            Ratio = 0.1M,
-                            Severity = severity.HIGH
-                        },
-                        new DiseaseRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Đau mắt",
-                            Quantity = 24,
-                            Ratio = 0.24M,
-                            Severity = severity.HIGH
-                        },
-                        new DiseaseRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Bệnh khác",
-                            Quantity = 0,
-                            Ratio = 0M,
-                            Severity = severity.LOW
-                        }
-                    },
-                    Total = 25,
-                    TotalRatio = 0.25M
-                },
-                TotalDisease = 6,
-                VaccinationRatioSummary = new VaccinationRatioSummary
-                {
-                    Items = new List<VaccinationRatio>
-                    {
-                        new VaccinationRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Tẩy kí sing trùng",
-                            Ratio = 0.6M,
-                            Severity = severity.HIGH
-                        },
-                        new VaccinationRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Lở mồm long móng",
-                            Ratio = 0.7M,
-                            Severity = severity.MEDIUM
-                        },
-                        new VaccinationRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Tụ huyết trùng",
-                            Ratio = 1M,
-                            Severity = severity.LOW
-                        },
-                        new VaccinationRatio
-                        {
-                            DiseaseId = "1",
-                            DiseaseName = "Viêm da nổi cục",
-                            Ratio = 1M,
-                            Severity = severity.LOW
-                        }
-                    },
-                    Total = 4
-                },
-                TotalLivestockMissingInformation = 10,
+                DiseaseRatioSummary = diseaseRatioSummary,
+                TotalDisease = totalDisease,
+                VaccinationRatioSummary = vaccinationRatioSummary,
+                TotalLivestockMissingInformation = totalLivestockMissingInfor,
                 InspectionCodeQuantitySummary = new InspectionCodeQuantitySummary
                 {
                     Items = new List<InspectionCodeQuantityBySpecie>
@@ -463,199 +498,185 @@ namespace DataAccess.Repository.Services
                     },
                     Total = 3,
                 },
-                SpecieRatioSummary = new SpecieRatioSummary
-                {
-                    Items = new List<SpecieRatio>
-                    {
-                        new SpecieRatio
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Bò lai Sind cái",
-                            Quantity = 25,
-                            Ratio = 0.25M
-                        },
-                        new SpecieRatio
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Bò lai Sind đực",
-                            Quantity = 10,
-                            Ratio = 0.1M
-                        },
-                        new SpecieRatio
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Bò BBB cái",
-                            Quantity = 25,
-                            Ratio = 0.25M
-                        },
-                        new SpecieRatio
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Bò BBB đực",
-                            Quantity = 10,
-                            Ratio = 0.1M
-                        },
-                        new SpecieRatio
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Trâu cái",
-                            Quantity = 25,
-                            Ratio = 0.25M
-                        },new SpecieRatio
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Trâu đực",
-                            Quantity = 5,
-                            Ratio = 0.05M
-                        },
-                    },
-                    Total = 100
-                },
-                WeightRatioSummary = new WeightRatioSummary
-                {
-                    Items = new List<WeightRatioBySpecie>
-                    {
-                        new WeightRatioBySpecie
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Bò lai Sind cái",
-                            TotalQuantity = 25,
-                            WeightRatios = new List<WeightRatio>
-                            {
-                                new WeightRatio
-                                {
-                                    WeightRange = "<90 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "90 - 130 kg",
-                                    Quantity = 0,
-                                    Ratio = 0M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "130 - 160 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "160 - 190 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "190 - 250 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = ">250 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                            }
-                        },
-                        new WeightRatioBySpecie
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Bò BBB cái",
-                            TotalQuantity = 25,
-                            WeightRatios = new List<WeightRatio>
-                            {
-                                new WeightRatio
-                                {
-                                    WeightRange = "<90 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "90 - 130 kg",
-                                    Quantity = 0,
-                                    Ratio = 0M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "130 - 160 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "160 - 190 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "190 - 250 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = ">250 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                            }
-                        },
-                        new WeightRatioBySpecie
-                        {
-                            SpecieId = "1",
-                            SpecieName = "Trâu cái",
-                            TotalQuantity = 25,
-                            WeightRatios = new List<WeightRatio>
-                            {
-                                new WeightRatio
-                                {
-                                    WeightRange = "<90 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "90 - 130 kg",
-                                    Quantity = 0,
-                                    Ratio = 0M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "130 - 160 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "160 - 190 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = "190 - 250 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                                new WeightRatio
-                                {
-                                    WeightRange = ">250 kg",
-                                    Quantity = 5,
-                                    Ratio = 0.2M
-                                },
-                            }
-                        },
-                    },
-                    Total = 100,
-                }
+                SpecieRatioSummary = specieRatioSummary,
+                WeightRatioSummary = weightRatioSummary
             };
-
             return result;
+        }
+
+        public async Task<SpecieRatioSummary> GetSpecieRatios()
+        {
+            var result = new SpecieRatioSummary
+            {
+                Total = 0,
+                Items = new List<SpecieRatio>()
+            };
+            var livestocks = await _context.Livestocks
+                .Where(o => !string.IsNullOrEmpty(o.SpeciesId)
+                    && (o.Status == livestock_status.CHỜ_ĐỊNH_DANH
+                    || o.Status == livestock_status.KHỎE_MẠNH
+                    || o.Status == livestock_status.ỐM)
+                )
+                .ToArrayAsync();
+            if (!livestocks.Any())
+                return result;
+            var totalQuantity = livestocks.Length;
+            var specieIds = livestocks
+                .GroupBy(o => o.SpeciesId)
+                .Select(o => o.Key)
+                .ToArray();
+            var dicDiseases = await _context.Diseases
+                .Where(o => specieIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.Name);
+            var resultItems = livestocks
+                .GroupBy(o => o.SpeciesId)
+                .Select(o => new SpecieRatio
+                {
+                    SpecieId = o.Key,
+                    SpecieName = dicDiseases.ContainsKey(o.Key) ? dicDiseases[o.Key] : "N/A",
+                    Quantity = o.Count(),
+                    Ratio = o.Count() / totalQuantity * 100
+                })
+                .ToArray();
+            result.Items = resultItems;
+            result.Total = resultItems.Length;
+            return result;
+        }
+
+        public async Task<WeightRatioSummary> GetWeightRatios()
+        {
+            var result = new WeightRatioSummary
+            {
+                Total = 0,
+                Items = new List<WeightRatioBySpecie>()
+            };
+            var livestocks = await _context.Livestocks
+                .Where(o => o.Status == livestock_status.CHỜ_ĐỊNH_DANH
+                    || o.Status == livestock_status.KHỎE_MẠNH
+                    || o.Status == livestock_status.ỐM)
+                .ToArrayAsync();
+            if (!livestocks.Any())
+                return result;
+            var totalQuantity = livestocks.Length;
+            var resultItems = new List<WeightRatioBySpecie>();
+            var specieIds = livestocks
+                .GroupBy(o => o.SpeciesId)
+                .Select(o => o.Key)
+                .ToArray();
+            var dicSpecies = await _context.Species
+                .Where(o => specieIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.Name);
+            foreach (var specideId in specieIds)
+            {
+                var livestocksBySpecie = livestocks
+                    .Where(o => o.SpeciesId == specideId)
+                    .ToArray();
+                if (!livestocksBySpecie.Any())
+                    continue;
+                var quantityBySpecie = livestocksBySpecie.Length;
+                var summaryBySpecie = new WeightRatioBySpecie
+                {
+                    SpecieId = specideId ?? "N/A",
+                    SpecieName = dicSpecies.ContainsKey(specideId ?? string.Empty) ? dicSpecies[specideId] : "N/A",
+                    TotalQuantity = quantityBySpecie,
+                };
+                var listWeights = new List<WeightRatio>();
+                var livestockNoWeights = livestocksBySpecie
+                    .Where(o => o.WeightEstimate == null || o.WeightEstimate == 0)
+                    .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestockNoWeights.Length,
+                    Ratio = livestockNoWeights.Length / quantityBySpecie * 100,
+                    WeightRange = "N/A"
+                });
+                var livestock90 = livestocksBySpecie
+                    .Where(o => o.WeightEstimate != null
+                        && o.WeightEstimate > 0
+                        && o.WeightEstimate < 90)
+                    .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestock90.Length,
+                    Ratio = livestock90.Length / quantityBySpecie * 100,
+                    WeightRange = "<90 kg"
+                });
+                var livestock130 = livestocksBySpecie
+                    .Where(o => o.WeightEstimate != null
+                        && o.WeightEstimate > 90
+                        && o.WeightEstimate > 130)
+                    .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestock130.Length,
+                    Ratio = livestock130.Length / quantityBySpecie * 100,
+                    WeightRange = "90-130 kg"
+                });
+                var livestock160 = livestocksBySpecie
+                    .Where(o => o.WeightEstimate != null
+                        && o.WeightEstimate > 130
+                        && o.WeightEstimate < 160)
+                    .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestock160.Length,
+                    Ratio = livestock160.Length / quantityBySpecie * 100,
+                    WeightRange = "130-160 kg"
+                });
+                var livestock190 = livestocksBySpecie
+                   .Where(o => o.WeightEstimate != null
+                       && o.WeightEstimate > 160
+                       && o.WeightEstimate > 190)
+                   .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestock190.Length,
+                    Ratio = livestock190.Length / quantityBySpecie * 100,
+                    WeightRange = "160-190 kg"
+                });
+                var livestock250 = livestocksBySpecie
+                   .Where(o => o.WeightEstimate != null
+                       && o.WeightEstimate > 190
+                       && o.WeightEstimate > 250)
+                   .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestock250.Length,
+                    Ratio = livestock250.Length / quantityBySpecie * 100,
+                    WeightRange = "190-250 kg"
+                });
+                var livestockMax = livestocksBySpecie
+                   .Where(o => o.WeightEstimate != null
+                       && o.WeightEstimate > 250)
+                   .ToArray();
+                listWeights.Add(new WeightRatio
+                {
+                    Quantity = livestockMax.Length,
+                    Ratio = livestockMax.Length / quantityBySpecie * 100,
+                    WeightRange = ">250 kg"
+                });
+                summaryBySpecie.WeightRatios = listWeights;
+                resultItems.Add(summaryBySpecie);
+            }
+            result.Items = resultItems;
+            result.Total = resultItems.Count();
+            return result;    
+        }
+
+        public async Task<int> GetLivestockMissingInforQuantity()
+        {
+            var livestocks = await _context.Livestocks
+                .Where(o => (o.Status == livestock_status.CHỜ_ĐỊNH_DANH
+                    || o.Status == livestock_status.KHỎE_MẠNH
+                    || o.Status == livestock_status.ỐM)
+                    && (string.IsNullOrEmpty(o.Color)
+                    || (o.Dob == null || o.Dob == DateTime.MinValue)
+                    || string.IsNullOrEmpty(o.Origin)
+                    || (o.WeightOrigin == null || o.WeightOrigin == 0)
+                    || (o.WeightEstimate == null || o.WeightEstimate == 0))
+                )
+                .ToArrayAsync();
+            return livestocks.Length;
         }
 
         public async Task<string> GetDiseaseReport()
@@ -665,22 +686,67 @@ namespace DataAccess.Repository.Services
                     || o.Status == medical_history_status.ĐANG_ĐIỀU_TRỊ
                     || o.Status == medical_history_status.TÁI_PHÁT)
                 .ToArrayAsync();
-            var species = await _context.Species.ToArrayAsync();
-            //var 
-
+            if (!medicalHistories.Any())
+                throw new Exception("Không có vật nuôi nào đang bị bệnh");
+            var totalQuantity = medicalHistories.Length; 
+            var diseaseIds = medicalHistories
+                .GroupBy(o => o.DiseaseId)
+                .Select(o => o.Key)
+                .ToArray();
+            var diseases = await _context.Diseases
+                .Where(o => diseaseIds.Contains(o.Id))
+                .ToListAsync();
+            var dicDiseases = diseases
+                .ToDictionary(o => o.Id, o => o.Name);
+            var diseaseNames = diseases
+                .Select(o => o.Name)
+                .OrderBy(o => o)
+                .ToList();
+            var livestockIds = medicalHistories
+                .GroupBy(o => o.LivestockId)
+                .Select(o => o.Key)
+                .ToArray();
+            var livestocks = await _context.Livestocks
+                .Where(o => livestockIds.Contains(o.Id))
+                .ToArrayAsync();
+            var specieIds = livestocks
+                .GroupBy(o => o.SpeciesId)
+                .Select(o => o.Key)
+                .ToArray();
+            var species = await _context.Species
+                .Where(o => specieIds.Contains(o.Id))
+                .ToArrayAsync();
+            var diseasesBySpecie = species
+                .Select(o => new DiseaseBySpecie
+                {
+                    SpecieId = o.Id,
+                    SpecieName = o.Name
+                })
+                .ToArray();
+            foreach (var item in diseasesBySpecie)
+            {
+                var livestockIdsBySpecie = livestocks
+                    .Where(o => o.SpeciesId == item.SpecieId)
+                    .Select(o => o.Id)
+                    .Distinct()
+                    .ToArray();
+                item.DiseaseQuantities = medicalHistories
+                    .Where(o => livestockIdsBySpecie.Contains(o.LivestockId))
+                    .GroupBy(o => o.DiseaseId)
+                    .Select(o => new DiseaseQuantity
+                    {
+                        DiseaseId = o.Key,
+                        DiseaseName = dicDiseases.ContainsKey(o.Key) ? dicDiseases[o.Key] : "N/A",
+                        Quantity = o.Count(),
+                        Ratio = o.Count() / totalQuantity
+                    })
+                    .ToArray();
+            }
 
             //Export to file
             var nowTime = DateTime.Now;
             var stringDate = $"Ngày {nowTime.Day}, tháng {nowTime.Month}, năm {nowTime.Year}";
             var fileName = $"Báo cáo dịch bệnh_{nowTime.ToString("yyyyMMddhhmmss")}.xlsx";
-            var diseaseIds = medicalHistories
-                .GroupBy(o => o.DiseaseId)
-                .Select(o => o.Key)
-                .ToArray();
-            var diseaseNames = await _context.Diseases
-                .Where(o => diseaseIds.Contains(o.Id))
-                .Select(o => o.Name)
-                .ToListAsync();
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
             using var package = new ExcelPackage(new MemoryStream());
@@ -696,9 +762,59 @@ namespace DataAccess.Repository.Services
             var columns = new string[] { "Giống/Bệnh" };
             var tmpCols = columns.ToList();
             tmpCols.AddRange(diseaseNames);
+            tmpCols.Add("Tổng");
             columns = tmpCols.ToArray();
             var data = new DataTable();
             data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+
+            diseasesBySpecie = diseasesBySpecie
+                .OrderBy(o => o.SpecieName)
+                .ToArray();
+            foreach (var item in diseasesBySpecie)
+            {
+                var row = data.NewRow();
+                foreach (var column in columns)
+                {
+                    if (column == "Giống/Bệnh")
+                    {
+                        row[column] = item.SpecieName;
+                        continue;
+                    }
+                    if (column == "Tổng")
+                    {
+                        row[column] = item.DiseaseQuantities.Sum(o => o.Quantity);
+                        continue;
+                    }
+                    row[column] = item.DiseaseQuantities.FirstOrDefault(o => o.DiseaseName == column)?.Quantity ?? 0;
+                }
+                data.Rows.Add(row);
+            }
+            var groupByDisease = diseasesBySpecie
+                    .SelectMany(o => o.DiseaseQuantities)
+                    .GroupBy(o => o.DiseaseName)
+                    .Select(o => new
+                    {
+                        o.Key,
+                        total = o.Sum(x => x.Quantity)
+                    })
+                    .ToArray();
+            var totalRow = data.NewRow();
+            foreach (var column in columns)
+            {
+                if (column == "Giống/Bệnh")
+                {
+                    totalRow[column] = "Tổng";
+                    continue;
+                }
+                if (column == "Tổng")
+                {
+                    totalRow[column] = totalQuantity;
+                    continue;
+                }
+                totalRow[column] = groupByDisease.FirstOrDefault(o => o.Key == column)?.total ?? 0;
+            }
+            data.Rows.Add(totalRow);
+
             worksheet.Cells["A3"].LoadFromDataTable(data, true, TableStyles.Light1);
             await package.SaveAsync();
             var stream = package.Stream;
@@ -709,8 +825,86 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetWeightBySpecieReport()
         {
-            return
-                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+            var weightRatiosBySpecie = await GetWeightRatios();
+            if (weightRatiosBySpecie.Total == 0)
+                throw new Exception("Không tìm thấy vật nuôi");
+            var totalQuantity = weightRatiosBySpecie.Items
+                .Sum(o => o.TotalQuantity);
+
+            //Export to file
+            var nowTime = DateTime.Now;
+            var stringDate = $"Ngày {nowTime.Day}, tháng {nowTime.Month}, năm {nowTime.Year}";
+            var fileName = $"Phân bổ vật nuôi theo trọng lượng_{nowTime.ToString("yyyyMMddhhmmss")}.xlsx";
+
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            using var package = new ExcelPackage(new MemoryStream());
+            var worksheet = package.Workbook.Worksheets.Add($"Phân bổ trọng lượng");
+
+            var richTextRow1 = worksheet.Cells["A1"].RichText;
+            var richTextRow2 = worksheet.Cells["A2"].RichText;
+            var boldSegmentRow1 = richTextRow1.Add(OrganizationName);
+            boldSegmentRow1.Bold = true;
+            var boldSegmentRow2 = richTextRow2.Add(stringDate);
+            boldSegmentRow2.Bold = true;
+
+            var columns = new string[] { "Giống/Trọng lượng", "N/A", "<90 kg", "90-130 kg", "130-160 kg", "160-190 kg", "190-250 kg", ">250 kg", "Tổng" };
+            var data = new DataTable();
+            data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+
+            var ratios = weightRatiosBySpecie.Items
+                .OrderBy(o => o.SpecieName)
+                .ToArray();
+            foreach (var item in ratios)
+            {
+                var row = data.NewRow();
+                foreach (var column in columns)
+                {
+                    if (column == "Giống/Trọng lượng")
+                    {
+                        row[column] = item.SpecieName;
+                        continue;
+                    }
+                    if (column == "Tổng")
+                    {
+                        row[column] = item.WeightRatios.Sum(o => o.Quantity);
+                        continue;
+                    }
+                    row[column] = item.WeightRatios.FirstOrDefault(o => o.WeightRange == column)?.Quantity ?? 0;
+                }
+                data.Rows.Add(row);
+            }
+            var groupByWeight = weightRatiosBySpecie.Items
+                   .SelectMany(o => o.WeightRatios)
+                   .GroupBy(o => o.WeightRange)
+                   .Select(o => new
+                   {
+                       o.Key,
+                       total = o.Sum(x => x.Quantity)
+                   })
+                   .ToArray();
+            var totalRow = data.NewRow();
+            foreach (var column in columns)
+            {
+                if (column == "Giống/Trọng lượng")
+                {
+                    totalRow[column] = "Tổng";
+                    continue;
+                }
+                if (column == "Tổng")
+                {
+                    totalRow[column] = totalQuantity;
+                    continue;
+                }
+                totalRow[column] = groupByWeight.FirstOrDefault(o => o.Key == column)?.total ?? 0;
+            }
+            data.Rows.Add(totalRow);
+
+            worksheet.Cells["A3"].LoadFromDataTable(data, true, TableStyles.Light1);
+            await package.SaveAsync();
+            var stream = package.Stream;
+            stream.Position = 0;
+            var url = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileReportsName, fileName, stream);
+            return url;
         }
 
         public async Task<ListLivestockSummary> ListLivestockSummary()
@@ -752,8 +946,7 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetListLivestocksReport()
         {
-            return
-                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+            throw new Exception("Tính năng hiện tại đang phát triển.");
         }
 
         public async Task<string> GetRecordLivestockStatusTemplate()
@@ -786,7 +979,7 @@ namespace DataAccess.Repository.Services
 
         public async Task ImportRecordLivestockStatusFile(string requestedBy, IFormFile file)
         {
-            return;
+            throw new Exception("Tính năng hiện tại đang phát triển.");
         }
 
         public async Task<int> GetTotalEmptyRecords()
@@ -803,8 +996,44 @@ namespace DataAccess.Repository.Services
 
         public async Task<string> GetEmptyQrCodesFile()
         {
-            return
-                @"https://www.google.com/url?sa=i&url=https%3A%2F%2Fcharacter-stats-and-profiles.fandom.com%2Fwiki%2FTung_Tung_Tung_Sahur_%2528Italian_Brainrot%2C_Canon%2FEvanTheProNoob%2529&psig=AOvVaw2PISjrk2prM3siorJ4uF5l&ust=1748010304176000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCKiByPujt40DFQAAAAAdAAAAABAU";
+            var emptyRecordIds = await _context.Livestocks
+                .Where(o => string.IsNullOrEmpty(o.InspectionCode)
+                    && o.Status == livestock_status.TRỐNG)
+                .Select(o => o.Id)
+                .Distinct()
+                .ToArrayAsync();
+            if (!emptyRecordIds.Any())
+                throw new Exception("Hiện không có mã QR trống nào. Vui lòng tạo thêm.");
+
+            var nowTime = DateTime.Now;
+            var fileName = $"QR_codes_{nowTime:yyyyMMddHHmmss}.zip";
+
+            // Generate QR codes and insert them into Excel
+            var zipStream = new MemoryStream();
+
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, true))
+            {
+                var generator = new QRCodeGenerator();
+                int index = 1;
+
+                foreach (var id in emptyRecordIds)
+                {
+                    var uri = urlDeploy + id;
+                    var qrData = generator.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
+                    var pngQr = new PngByteQRCode(qrData);
+                    byte[] qrBytes = pngQr.GetGraphic(20);
+
+                    var entry = archive.CreateEntry(SanitizeFileName($"QR_{index}.png"));
+                    using var entryStream = entry.Open();
+                    entryStream.Write(qrBytes, 0, qrBytes.Length);
+
+                    index++;
+                }
+            }
+            zipStream.Position = 0;
+
+            var url = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileQrCodesName, fileName, zipStream);
+            return url;
         }
 
         public async Task<bool> CreateEmptyLivestockRecords(string requestedBy, int quantity)
@@ -863,7 +1092,7 @@ namespace DataAccess.Repository.Services
 
         public async Task ImportRecordLivestockInformationFile(string requestedBy, IFormFile file)
         {
-            return;
+            throw new Exception("Tính năng hiện tại đang phát triển.");
         }
 
         public async Task ChangeLivestockStatus(string requestedBy, string[] livestockIds, livestock_status status)
@@ -927,8 +1156,12 @@ namespace DataAccess.Repository.Services
             // Get import information
             var importDetail = livestock.BatchImportDetails?.OrderBy(bid => bid.CreatedAt).FirstOrDefault();
 
-            // Get export information  
-            var exportDetail = livestock.BatchExportDetails?.OrderByDescending(bed => bed.CreatedAt).FirstOrDefault();
+            // Get export information Order
+            var exportDetail = livestock.BatchExportDetails?.OrderByDescending(b => b.CreatedAt).FirstOrDefault();
+
+            // Get export order details
+            var exportOrder = await _context.OrderDetails
+                .FirstOrDefaultAsync(x => x.LivestockId == request.LivestockId);
 
             // Get vaccinated diseases (diseases that have been vaccinated against)
             var vaccinatedDiseases = livestock.LivestockVaccinations?
@@ -974,7 +1207,7 @@ namespace DataAccess.Repository.Services
                 BarnName = livestock.Barn?.Name ?? "N/A",
                 ImportDate = importDetail?.ImportedDate,
                 ImportWeight = importDetail?.WeightImport ?? livestock.WeightOrigin,
-                ExportDate = exportDetail?.ExportDate,
+                ExportDate = exportDetail?.ExportDate ?? exportOrder?.ExportedDate,
                 ExportWeight = exportDetail?.WeightExport ?? livestock.WeightExport,
                 LastUpdatedAt = livestock.UpdatedAt,
                 LastUpdatedBy = livestock.UpdatedBy,
@@ -987,12 +1220,76 @@ namespace DataAccess.Repository.Services
 
         public async Task UpdateLivestockDetails(UpdateLivestockDetailsRequest request)
         {
+            if (request == null || (string.IsNullOrEmpty(request.LivestockId) && string.IsNullOrEmpty(request.InspectionCode) && string.IsNullOrEmpty(request.SpecieId)))
+                throw new Exception("Hãy quét mã QR hoặc điền đầy đủ thông tin");
+            var livestock = await _context.Livestocks
+                .FirstOrDefaultAsync(o => (!string.IsNullOrEmpty(request.LivestockId) && o.Id == request.LivestockId) ||
+                           (!string.IsNullOrEmpty(request.InspectionCode) && !string.IsNullOrEmpty(request.SpecieId) &&
+                            o.InspectionCode == request.InspectionCode && o.SpeciesId == request.SpecieId));
+            if (livestock == null)
+                throw new Exception("Không tìm thấy vật nuôi phù hợp");
+            if (request.Weight != null && request.Weight < 0)
+                throw new Exception("Trọng lượng phải là số lớn hơn 0");
+            if (request.WeightOrigin != null && request.WeightOrigin < 0)
+                throw new Exception("Trọng lượng nhập phải là số lớn hơn 0");
+            if (livestock == null)
+                throw new Exception("Không tìm được vật nuôi");
+            if (!string.IsNullOrEmpty(request.Color))
+                livestock.Color = request.Color;
+            if (!string.IsNullOrEmpty(request.Origin))
+                livestock.Origin = request.Origin;
+            if (request.WeightOrigin != null)
+                livestock.WeightOrigin = request.WeightOrigin;
+            if (request.Weight != null)
+                livestock.WeightEstimate = request.Weight;
+            livestock.UpdatedAt = DateTime.Now;
+            livestock.UpdatedBy = request.RequestedBy;
             return;
         }
 
         public async Task RecordLivestockDiseases(RecordLivstockDiseases request)
         {
+            if (request == null || (string.IsNullOrEmpty(request.LivestockId) && string.IsNullOrEmpty(request.InspectionCode) && string.IsNullOrEmpty(request.SpecieId)))
+                throw new Exception("Hãy quét mã QR hoặc điền đầy đủ thông tin");
+            if (request.DiseaseIds == null || !request.DiseaseIds.Any())
+                throw new Exception("Hãy chọn loại bệnh muốn ghi nhận");
+
+            var livestock = await _context.Livestocks
+                .FirstOrDefaultAsync(o => (!string.IsNullOrEmpty(request.LivestockId) && o.Id == request.LivestockId) ||
+                           (!string.IsNullOrEmpty(request.InspectionCode) && !string.IsNullOrEmpty(request.SpecieId) &&
+                            o.InspectionCode == request.InspectionCode && o.SpeciesId == request.SpecieId));
+            if (livestock == null)
+                throw new Exception("Không tìm thấy vật nuôi phù hợp");
+            var diseaseMedicines = await _context.DiseaseMedicines
+                .Where(o => request.DiseaseIds.Contains(o.DiseaseId))
+                .ToDictionaryAsync(o => o.DiseaseId, o => o.MedicineId);
+
+            var newMedicalHistories = request.DiseaseIds
+                .Select(o => new MedicalHistory
+                {
+                    Id = SlugId.New(),
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
+                    CreatedBy = request.RequestedBy,
+                    UpdatedBy = request.RequestedBy,
+                    LivestockId = livestock.Id,
+                    DiseaseId = o,
+                    MedicineId = request.MedicineIds?.FirstOrDefault(x => x == diseaseMedicines[o]) ?? null,
+                    Symptom = request.Symptoms,
+                    Status = medical_history_status.CHỜ_KHÁM,
+                    RecoverDate = null,
+                })
+                .ToArray();
+            await _context.MedicalHistories.AddRangeAsync(newMedicalHistories);
+            await _context.SaveChangesAsync();
             return;
+        }
+
+        private string SanitizeFileName(string input)
+        {
+            foreach (var c in Path.GetInvalidFileNameChars())
+                input = input.Replace(c, '_');
+            return input;
         }
     }
 }

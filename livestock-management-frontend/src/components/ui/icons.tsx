@@ -39,7 +39,9 @@ import {
   Pill,
   Loader2,
   ShieldCheck,
-  Grid3X3
+  Grid3X3,
+  StretchHorizontal,
+  BarChart
 } from 'lucide-react';
 
 export type Icon = LucideIcon;
@@ -50,6 +52,8 @@ export const Icons = {
   dog: Dog, // Vật nuôi
   pill: Pill, // Bệnh dịch
   grid: Grid3X3, // Danh sách
+  barChart: BarChart, // Thống kê
+  stretchhorizontal: StretchHorizontal, // Danh sách
   shieldCheck: ShieldCheck, // Bảo hiểm
   spinner: Loader2, // Loading
   employee: FileCheck2, // Đơn đăng ký

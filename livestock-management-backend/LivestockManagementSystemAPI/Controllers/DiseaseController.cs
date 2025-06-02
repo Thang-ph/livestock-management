@@ -2,6 +2,7 @@
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using DataAccess.Repository.Interfaces;
+using DataAccess.Repository.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
@@ -262,6 +263,82 @@ namespace LivestockManagementSystemAPI.Controllers
             {
                 _logger.LogError($"[{this.GetType().Name}]/{nameof(DeleteDisease)}  Delete diseases failed: " + ex.Message);
                 return SaveError(ex.Message);
+            }
+        }
+
+        [HttpGet("get-disease-by-id/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ListDiseases>> GetDiseaseById([FromRoute] string id)
+        {
+            try
+            {
+                var data = await _diseaseRepository.GetByIdAsync(id);
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetDiseaseById)} Get list diseases failed: " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpPost("create")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<DiseaseDTO>> Create([FromBody] DiseaseUpdateDTO model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    _logger.LogWarning($"[{this.GetType().Name}]/{nameof(Create)} ModelState not Valid");
+                    return GetError("ModelState not Valid");
+                }
+                var data = await _diseaseRepository.CreateDisease(model);
+                return SaveSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(Create)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        [HttpGet("stats-by-month")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<StatsDiseaseSummary>> GetStatsDiseaseByMonth(GetStatsDiseaseByMonthFilter filter)
+        {
+            try
+            {
+                var data = await _diseaseRepository.GetStatsDiseaseByMonth(filter);
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetStatsDiseaseByMonth)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+
+        [HttpGet("vaccinated-ratios")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<VaccinationRatioSummary>> GetVaccinatedRatios()
+        {
+            try
+            {
+                var data = await _diseaseRepository.GetVaccinatedRatios();
+                return GetSuccess(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(GetVaccinatedRatios)} " + ex.Message);
+                return GetError(ex.Message);
             }
         }
     }

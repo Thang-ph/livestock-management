@@ -99,6 +99,14 @@ namespace BusinessObjects.Dtos
 
         public HandoverInformation Handoverinformation { get; set; }
     }
+    public class HandOverProcessProcurement
+    {
+        public string ProcurementId { get; set; }  
+        public DateTime? SuccessDate { get; set; }
+        public DateTime? ExpirationDate { get; set; }
+        public int TotalRequired { get; set; }
+        public int TotalHandover { get; set; }
+    }
     public class HandoverInformation
     {
         public int totalSelected { get; set; } = 0;
@@ -120,7 +128,16 @@ namespace BusinessObjects.Dtos
         public string? CreatedBy { get; set; } = "N/A";
         public IEnumerable<ProcurementDetails> Details { get; set; }
     }
-
+    public class ProcurementOverview
+    {
+        public int bidding { get; set; }
+        public int waitHandOver { get; set; }
+        public int handOver { get; set; }
+        public int complete { get; set; }
+        public int cancel { get; set; }
+        public int waitSelect { get; set; }
+    }
+   
     public class ProcurementDetails
     {
         public string Id { get; set; }

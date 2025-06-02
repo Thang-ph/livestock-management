@@ -50,6 +50,32 @@ namespace LivestockManagementSystemAPI.Controllers
         }
 
         /// <summary>
+        /// Tạo mới đơn bảo hành (gửi yêu cầu bảo hành)
+        /// </summary>
+        [HttpPost("create-insurence-request-id")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateWithID([FromBody] CreateInsurenceIdDTO createDto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    _logger.LogWarning($"[{this.GetType().Name}]/{nameof(Create)} ModelState not Valid");
+                    return GetError("ModelState not Valid");
+                }
+                var codeRangeModel = await _insurenceRepository.CreateInsuranceWithID(createDto);
+                return SaveSuccess(codeRangeModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(Create)} " + ex.Message);
+                return SaveError(ex.Message);
+            }
+        }
+
+        /// <summary>
         /// Lấy chi tiết một đơn bảo hành theo id
         /// </summary>
         [HttpGet("get-insurence-request/{id}")]
@@ -340,6 +366,28 @@ namespace LivestockManagementSystemAPI.Controllers
             {
                 _logger.LogError($"[{this.GetType().Name}]/{nameof(GetAllStatusReturn)} " + ex.Message);
                 return GetError(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Lấy tất cả trạng thái của thu hồi vật nuôi
+        /// </summary>
+        [HttpGet("scan-qr-insurance/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ScanQRInsurance([FromRoute] String id)
+        {
+            try
+            {
+
+                var codeRangeModel = await _insurenceRepository.CreateInsurenceRequestWithScan(id);
+                return SaveSuccess(codeRangeModel);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(Create)} " + ex.Message);
+                return SaveError(ex.Message);
             }
         }
     }

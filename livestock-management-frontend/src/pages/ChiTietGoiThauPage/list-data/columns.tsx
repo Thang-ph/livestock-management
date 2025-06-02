@@ -1,8 +1,6 @@
 import { ColumnDef } from '@tanstack/react-table';
 import __helpers from '@/helpers';
 import { useSearchParams } from 'react-router-dom';
-import { CellAction } from './cell-action';
-
 export const columns: ColumnDef<any>[] = [
   {
     accessorKey: 'STT',
@@ -46,10 +44,5 @@ export const columns: ColumnDef<any>[] = [
     accessorKey: 'remaining',
     header: 'Chờ bàn giao',
     enableSorting: true
-  },
-
-  {
-    id: 'actions',
-    cell: ({ row }) => <CellAction data={row.original} />
   }
 ];

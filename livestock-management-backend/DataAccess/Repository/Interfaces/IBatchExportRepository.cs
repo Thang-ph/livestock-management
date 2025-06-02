@@ -1,4 +1,5 @@
-﻿using BusinessObjects.Dtos;
+﻿using BusinessObjects.Constants;
+using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using Microsoft.AspNetCore.Http;
 using System;
@@ -19,11 +20,12 @@ namespace DataAccess.Repository.Interfaces
         Task<BatchExport> AddCustomerFromBatchExport(AddCustomerBatchExportDTO addCustomerBatchExportDTO);
         Task<bool> CanAddCustomerInBatchExport(string procurementId);
         Task<bool> DeleteLivestockFromBatchExportDetail(string batchExportDetailId);
-        Task<BatchExportDetail> AddLivestockToBatchExportDetail( BatchExportDetailAddDTO batchExportDetailAddDTO);
+        Task<bool> AddLivestockToBatchExportDetail( BatchExportDetailAddDTO batchExportDetailAddDTO);
         Task<BatchExportDetail> ChangeLivestockToBatchExportDetail(string batchExportDetailId, BatchExportDetailChangeDTO batchExportDetailChangeDTO);
         Task<BatchExportDetail> UpdateBatchExportDetail(BatchExportDetailUpdateDTO batchExportDetailChangeDTO);
         Task<bool> CanChangeLivestockInBatchExportDetail(string batchExportDetailId);
-        Task<bool> ConfirmHandoverBatchExportDetail(string batchExportDetailId, string UpdatedBy);
-        
+        Task<bool> ConfirmHandoverBatchExportDetail(string livestockId, string UpdatedBy);
+        Task<bool> AddLivestockToBatchExportDetailByInspectionCode(BatchExportDetailAddDTOByInspectionCode batchExportDetailAdd);
+        Task<bool> ConfirmHandoverBatchExportDetailByInspectionCode(string inspectionCode, LmsConstants.specie_type specieType, string updatedBy);
     }
 }

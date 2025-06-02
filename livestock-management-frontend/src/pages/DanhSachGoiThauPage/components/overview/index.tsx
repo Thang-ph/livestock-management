@@ -2,19 +2,23 @@ import ListData from '../../list-data';
 import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';
 import { useSearchParams } from 'react-router-dom';
 import { useGetGoiThau } from '@/queries/admin.query';
-// import { useSearchParams } from 'react-router-dom';
-// import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';
 
 export function OverViewTab() {
   const [searchParams] = useSearchParams();
-  // const page = Number(searchParams.get('page') || 1);
+  const page = Number(searchParams.get('page') || 1); // Bỏ comment để lấy page từ URL
   const pageLimit = Number(searchParams.get('limit') || 10);
   const keyword = searchParams.get('keyword') || '';
+
+  // API get all data
   const { data, isPending } = useGetGoiThau(keyword);
 
-  const listObjects = data?.data.items;
-  const totalRecords = data?.data.items.length;
+  const allItems = data?.data.items || [];
+  const totalRecords = allItems.length;
   const pageCount = Math.ceil(totalRecords / pageLimit);
+
+  const startIndex = (page - 1) * pageLimit;
+  const endIndex = startIndex + pageLimit;
+  const listObjects = allItems.slice(startIndex, endIndex);
 
   return (
     <>
@@ -31,7 +35,7 @@ export function OverViewTab() {
         ) : (
           <ListData
             data={listObjects}
-            page={pageLimit}
+            page={page} // Truyền page thay vì pageLimit
             totalUsers={totalRecords}
             pageCount={pageCount}
           />

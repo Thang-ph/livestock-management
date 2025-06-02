@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-const genAI = new GoogleGenerativeAI('AIzaSyAv_IV3LwjMz8PHBnH7ShUX7Ct23z9eX_s');
+const genAI = new GoogleGenerativeAI('AIzaSyAv0B4oTjzUF59thIe-pbpwsFdG-hRd2KY');
 
 const GetModel = {
   GeminiProModel: () => {

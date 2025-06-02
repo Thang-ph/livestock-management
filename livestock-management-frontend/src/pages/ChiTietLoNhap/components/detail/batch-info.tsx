@@ -13,12 +13,12 @@ import { Edit, Check, X } from 'lucide-react';
 import ConfirmDialog from './confirm-dialog';
 import EditBatchModal from './edit-batch-modal';
 import {
-  useUpdateLoNhap,
   useUpdateSuccessLoNhap,
   useUpdateCancelLoNhap
 } from '@/queries/lo-nhap.query';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/components/ui/use-toast';
+import __helpers from '@/helpers';
 
 interface BatchInfo {
   id: string;
@@ -55,7 +55,7 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
     useState<BatchInfo>(batchInfo);
 
   // Sử dụng TanStack Query
-  const { mutate: updateLoNhap, isPending: isUpdating } = useUpdateLoNhap();
+  // const { mutate: updateLoNhap, isPending: isUpdating } = useUpdateLoNhap();
   const { mutate: updateCancelLoNhap, isPending: isCancelling } =
     useUpdateCancelLoNhap();
   const { mutate: updateSuccessLoNhap, isPending: isCompleting } =
@@ -63,7 +63,7 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
   const queryClient = useQueryClient();
 
   // Trạng thái đang xử lý tổng hợp
-  const isProcessing = isUpdating || isCancelling || isCompleting;
+  const isProcessing = isCancelling || isCompleting;
 
   // Hàm định dạng ngày tháng
   const formatDate = (dateString: string | null) => {
@@ -105,7 +105,7 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
   const handleComplete = () => {
     const payload = {
       id: currentBatchInfo.id,
-      requestedBy: 'SYS'
+      requestedBy: __helpers.getUserId() || 'SYS'
     };
 
     updateSuccessLoNhap(payload, {
@@ -147,14 +147,18 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
     <>
       <Card className="w-full shadow-md">
         <CardHeader className="flex flex-row items-center justify-between border-b bg-gray-50">
-          <CardTitle className="text-xl">Thông tin lô tiêm</CardTitle>
+          <CardTitle className="text-xl">Thông tin lô nhập</CardTitle>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
               className="gap-1"
               onClick={() => setShowEditModal(true)}
-              disabled={currentBatchInfo.status !== 'CHỜ_NHẬP' || isProcessing}
+              disabled={
+                (currentBatchInfo.status !== 'CHỜ_NHẬP' &&
+                  currentBatchInfo.status != 'ĐANG_NHẬP') ||
+                isProcessing
+              }
             >
               <Edit className="h-4 w-4" />
               Chỉnh sửa
@@ -164,7 +168,11 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
               size="sm"
               className="gap-1"
               onClick={() => setShowCompleteDialog(true)}
-              disabled={currentBatchInfo.status !== 'CHỜ_NHẬP' || isProcessing}
+              disabled={
+                (currentBatchInfo.status !== 'CHỜ_NHẬP' &&
+                  currentBatchInfo.status != 'ĐANG_NHẬP') ||
+                isProcessing
+              }
             >
               <Check className="h-4 w-4" />
               Hoàn thành
@@ -229,7 +237,11 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
             size="sm"
             className="gap-1"
             onClick={() => setShowCancelDialog(true)}
-            disabled={currentBatchInfo.status !== 'CHỜ_NHẬP' || isProcessing}
+            disabled={
+              (currentBatchInfo.status !== 'CHỜ_NHẬP' &&
+                currentBatchInfo.status != 'ĐANG_NHẬP') ||
+              isProcessing
+            }
           >
             <X className="h-4 w-4" />
             Hủy bỏ
@@ -242,7 +254,7 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
         open={showCancelDialog}
         onOpenChange={setShowCancelDialog}
         title="Xác nhận hủy bỏ"
-        description="Bạn có chắc chắn muốn hủy bỏ lô tiêm này không? Hành động này không thể hoàn tác."
+        description="Bạn có chắc chắn muốn hủy bỏ lô nhập này không? Hành động này không thể hoàn tác."
         confirmLabel="Hủy bỏ"
         cancelLabel="Đóng"
         onConfirm={handleCancel}
@@ -255,7 +267,7 @@ export default function BatchInfoCard({ batchInfo }: BatchInfoCardProps) {
         open={showCompleteDialog}
         onOpenChange={setShowCompleteDialog}
         title="Xác nhận hoàn thành"
-        description="Bạn có chắc chắn muốn đánh dấu lô tiêm này là đã hoàn thành không?"
+        description="Bạn có chắc chắn muốn đánh dấu lô nhập này là đã hoàn thành không?"
         confirmLabel="Hoàn thành"
         cancelLabel="Đóng"
         onConfirm={handleComplete}

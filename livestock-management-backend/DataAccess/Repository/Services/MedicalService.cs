@@ -77,8 +77,6 @@ namespace DataAccess.Repository.Services
                     CreatedAt = v.CreatedAt,
                 })
                 .OrderByDescending(v => v.CreatedAt)
-                .Skip(filter?.Skip ?? 0)
-                .Take(filter?.Take ?? 10)
                 .ToArray();
             result.Total = medicine.Length;
 
@@ -106,6 +104,17 @@ namespace DataAccess.Repository.Services
             medicineModels.CreatedBy = medicineModels.CreatedBy.Trim();
             medicineModels.UpdatedAt = medicineModels.CreatedAt;
             medicineModels.UpdatedBy = medicineModels.CreatedBy;
+            DiseaseMedicine diseaseMedicine = new DiseaseMedicine
+            {
+                Id = SlugId.New(),
+                MedicineId = medicineModels.Id,
+                DiseaseId = medicine.DisiseaId,
+                CreatedAt = DateTime.Now,
+                CreatedBy = medicineModels.CreatedBy,
+                UpdatedAt = DateTime.Now,
+                UpdatedBy = medicineModels.CreatedBy
+            };
+            _context.DiseaseMedicines.Add(diseaseMedicine);
             await _context.Medicines.AddAsync(medicineModels);
             await _context.SaveChangesAsync();
             var medicineView = _mapper.Map<MedicineDTO>(medicineModels);
@@ -114,13 +123,16 @@ namespace DataAccess.Repository.Services
 
         public async Task<MedicineSummary?> UpdateAsync(string id, UpdateMedicineDTO updateMedicineDto)
         {
-            var medicineModels = await _context.Medicines.FirstOrDefaultAsync(x => x.Id == id.Trim());
+            var medicineModels = await _context.Medicines.Include(x=>x.DiseaseMedicines).FirstOrDefaultAsync(x => x.Id == id.Trim());
             if (medicineModels == null) throw new Exception("Không tìm thấy thuốc.");
             medicineModels.Name = updateMedicineDto.Name.Trim();
             medicineModels.Description = updateMedicineDto.Description.Trim();
             medicineModels.Type = updateMedicineDto.Type;
             medicineModels.UpdatedAt = DateTime.Now;
             medicineModels.UpdatedBy = updateMedicineDto.UpdatedBy.Trim();
+            DiseaseMedicine diseaseMedicine = _context.DiseaseMedicines.FirstOrDefault(x=>x.MedicineId== id);
+            diseaseMedicine.DiseaseId = updateMedicineDto.DiseaseId;
+             _context.Update(diseaseMedicine);
             await _context.SaveChangesAsync();
             var medicineView = _mapper.Map<MedicineSummary>(medicineModels);
             return medicineView;

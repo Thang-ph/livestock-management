@@ -79,6 +79,16 @@ namespace BusinessObjects.Dtos
             public string CreatedBy { get; set; } = "HieuNT";
         
         }
+
+    public class CreateInsurenceIdDTO
+    {
+        public string Id { get; set; }
+        public string DiseaseId { get; set; }
+        public string? OtherReason { get; set; }
+        public string ImageUris { get; set; }
+        public string CreatedBy { get; set; } = "HieuNT";
+
+    }
     public class CreateInsurenceQrDTO
     {
         public string LivestockId { get; set; }

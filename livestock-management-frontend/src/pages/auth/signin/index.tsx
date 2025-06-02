@@ -17,8 +17,8 @@ export default function SignInPage() {
     const a = document.createElement('a');
     const url =
       process.env.NODE_ENV === 'production'
-        ? 'https://localhost:7085'
-        : 'https://localhost:7085';
+        ? 'https://api.hoptacxaluavang.site'
+        : 'https://api.hoptacxaluavang.site';
     a.href = `${url}/api/auth/google-login`;
     a.target = '_self';
     a.click();

@@ -136,7 +136,6 @@ namespace LivestockManagementSystemAPI.Controllers
         [ProducesResponseType(StatusCodes.Status302Found)]
         public IActionResult GoogleLogin()
         {
-            _logger.LogInformation("[AuthController.GoogleLogin] - Google login initialization requested");
 
             // Xây dựng URL trực tiếp đến Google
             string clientId = _configuration["Authentication:Google:ClientId"];

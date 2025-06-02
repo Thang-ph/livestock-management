@@ -18,7 +18,7 @@ namespace DataAccess.Repository.Interfaces
         Task<bool> SetLivestockDead(string bathcImportDetailsId, string requestedBy);
         Task<LivestockBatchImportInfo> AddLivestockToDetails(string batchImportId, AddImportLivestockDTO livestockAddModel);
         Task<LivestockBatchImportInfo> UpdateLivestockInDetails(string id, UpdateImportLivestockDTO livestockUpdateModel);
-        Task<PinnedBatchImport> AddToPinImportBatch(string batchImportId, string requestedBy);
+        Task<bool> AddToPinImportBatch(string batchImportId, string requestedBy);
         Task<bool> RemoveFromPinImportBatch(string pinnedImportId, string requestedBy);
         Task<ListPinnedImportBatches> GetListPinnedBatcImport(string userId);
         Task<ListOverDueImportBatches> GetListOverDueBatchImport();

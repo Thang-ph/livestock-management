@@ -20,6 +20,22 @@ export const ceoNavItems: any = [
         isActive: false,
         shortcut: ['d', 'd'],
         items: []
+      },
+      {
+        title: 'Bảo hành',
+        url: '/bao-hanh',
+        icon: 'shieldCheck',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: 'Danh sách đơn mua lẻ',
+        url: '/danh-sach-don-mua-le',
+        icon: 'stretchhorizontal',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
       }
     ]
   },
@@ -95,6 +111,14 @@ export const ceoNavItems: any = [
     label: 'Vật nuôi',
     detail: [
       {
+        title: 'Tổng quan chăn nuôi',
+        url: '/livestock-dashboard',
+        icon: 'barChart',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
         title: 'Danh sách vật nuôi',
         url: '/danh-sach-vat-nuoi',
         icon: 'dog',
@@ -169,11 +193,143 @@ export const ceoNavItems: any = [
 
 export const managerNavItems: any = [
   {
+    label: 'Quản lý',
+    detail: [
+      {
+        title: 'Bảo hành',
+        url: '/bao-hanh',
+        icon: 'shieldCheck',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: 'Danh sách đơn mua lẻ',
+        url: '/danh-sach-don-mua-le',
+        icon: 'stretchhorizontal',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
+    label: 'Quản lý gói thầu',
+    detail: [
+      {
+        title: 'Lịch trình',
+        url: '/goi-thau',
+        icon: 'package',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
+    label: 'Quản lý Tiêm',
+    detail: [
+      {
+        title: 'Danh sách lô tiêm',
+        url: '/lo-tiem',
+        icon: 'layers',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: 'Quản lý lô tiêm',
+        url: '/quan-ly-lo-tiem',
+        icon: 'grid',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
+    label: 'Vật nuôi',
+    detail: [
+      {
+        title: 'Tổng quan chăn nuôi',
+        url: '/livestock-dashboard',
+        icon: 'barChart',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: 'Danh sách vật nuôi',
+        url: '/danh-sach-vat-nuoi',
+        icon: 'dog',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
+    label: 'Mã kiểm dịch',
+    detail: [
+      {
+        title: 'Mã kiểm dịch',
+        icon: 'pill',
+        isActive: true,
+        shortcut: ['d', 'd'],
+        items: [
+          {
+            title: 'Lịch sử mã kiểm dịch',
+            url: '/ma-kiem-dich',
+            isActive: false,
+            shortcut: ['d', 'd'],
+            items: []
+          },
+          {
+            title: 'Mã kiểm dịch theo loài',
+            url: '/ma-kiem-dich-theo-loai',
+            isActive: false,
+            shortcut: ['d', 'd'],
+            items: []
+          }
+        ]
+      }
+    ]
+  }
+];
+
+export const assistantNavItems: any = [
+  {
+    label: 'Quản lý',
+    detail: [
+      {
+        title: 'Danh sách đơn mua lẻ',
+        url: '/danh-sach-don-mua-le',
+        icon: 'stretchhorizontal',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
+    label: 'Quản lý gói thầu',
+    detail: [
+      {
+        title: 'Danh sách gói thầu',
+        url: '/danh-sach-goi-thau',
+        icon: 'listOrdered',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
     label: 'Quản lý Nhập/Xuất',
     detail: [
       {
         title: 'Danh sách lô nhập',
-        url: '/lo-nhap',
+        url: '/admin/lo-nhap',
         icon: 'download',
         isActive: false,
         shortcut: ['d', 'd'],
@@ -193,13 +349,39 @@ export const managerNavItems: any = [
         items: []
       }
     ]
-  }
-];
-
-export const employeeNavItems: any = [
+  },
   {
     label: 'Vật nuôi',
     detail: [
+      {
+        title: 'Tổng quan chăn nuôi',
+        url: '/livestock-dashboard',
+        icon: 'barChart',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
+      {
+        title: 'Danh sách vật nuôi',
+        url: '/danh-sach-vat-nuoi',
+        icon: 'dog',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      }
+    ]
+  },
+  {
+    label: 'Vật nuôi',
+    detail: [
+      {
+        title: 'Tổng quan chăn nuôi',
+        url: '/livestock-dashboard',
+        icon: 'barChart',
+        isActive: false,
+        shortcut: ['d', 'd'],
+        items: []
+      },
       {
         title: 'Danh sách vật nuôi',
         url: '/danh-sach-vat-nuoi',
@@ -220,6 +402,33 @@ export const employeeNavItems: any = [
         isActive: false,
         shortcut: ['d', 'd'],
         items: []
+      }
+    ]
+  },
+  {
+    label: 'Mã kiểm dịch',
+    detail: [
+      {
+        title: 'Mã kiểm dịch',
+        icon: 'pill',
+        isActive: true,
+        shortcut: ['d', 'd'],
+        items: [
+          {
+            title: 'Lịch sử mã kiểm dịch',
+            url: '/ma-kiem-dich',
+            isActive: false,
+            shortcut: ['d', 'd'],
+            items: []
+          },
+          {
+            title: 'Mã kiểm dịch theo loài',
+            url: '/ma-kiem-dich-theo-loai',
+            isActive: false,
+            shortcut: ['d', 'd'],
+            items: []
+          }
+        ]
       }
     ]
   }

@@ -33,7 +33,7 @@ namespace DataAccess.Repository.Services
         {
             try
             {
-                var insurance = await _context.InsuranceRequests.Where(x => x.Id.Equals(data.Id)).SingleOrDefaultAsync();
+                var insurance = await _context.InsuranceRequests.Where(x => x.Id.Equals(data.Id)).FirstOrDefaultAsync();
                 if (insurance == null) throw new Exception("Mã bảo hành không hợp lệ");
                 insurance.Status = insurance_request_status.ĐANG_CHUẨN_BỊ;
                 insurance.ApprovedAt = DateTime.Now;
@@ -44,7 +44,7 @@ namespace DataAccess.Repository.Services
             }
             catch (Exception ex)
             {
-                throw new Exception("Lỗi dữ liệu");
+                throw new Exception(ex.Message);
             }
         }
 
@@ -70,6 +70,132 @@ namespace DataAccess.Repository.Services
             }
             else { throw new Exception("Mã bảo hành không tồn tại."); }
             
+        }
+
+        public async Task<InsurenceRequestDTO> CreateInsuranceWithID(CreateInsurenceIdDTO createDto)
+        {
+            if (createDto == null) throw new Exception("Không thể tạo với thông tin rỗng");
+            var checkExits = _context.InsuranceRequests.Where(x => x.RequestLivestockId.Equals(createDto.Id)).ToList();
+            var check = checkExits.Where(x => x.Status.Equals(insurance_request_status.CHỜ_DUYỆT) || x.Status.Equals(insurance_request_status.ĐANG_CHUẨN_BỊ) || x.Status.Equals(insurance_request_status.CHỜ_BÀN_GIAO)).ToList();
+            if (check.Count > 0) throw new Exception("Vật nuôi này đang được xử lý, vui lòng không gửi thêm yêu cầu");
+            
+            var livestock = await _context.Livestocks.Where(p => p.Id.Equals(createDto.Id)).Include(x => x.OrderDetails).Include(x => x.LivestockProcurements).FirstOrDefaultAsync();
+            if (livestock == null) throw new Exception("Mã kiểm dịch không chính xác");
+            if (livestock.OrderDetails != null&&livestock.OrderDetails.Any())
+            {
+                //Kiểm tra xem con vật có tồn tại trong hệ thống hay không
+                //Lý do: Vì có nhiều loại con vật có thể cùng mã kiểm dịch nên mưới phải check thế này để đảm bảo
+
+
+
+                var procurmentLivestock = await _context.OrderDetails.Where(x => x.LivestockId.Equals(livestock.Id)).Include(x => x.Order).FirstOrDefaultAsync();
+                if (procurmentLivestock == null) throw new Exception("Vật nuôi này không có trong hợp đồng !");
+                var procurment = await _context.Orders.Where(x => x.Id.Equals(procurmentLivestock.OrderId)).Include(x => x.OrderRequirements).FirstOrDefaultAsync();
+
+                //Kiểm tra hợp đồng có hợp lệ hay không
+                if (procurment == null) throw new Exception("Mã hợp đồng không hợp lệ");
+
+                var orderReq = procurment.OrderRequirements.Where(x => x.SpecieId.Equals(livestock.SpeciesId)).FirstOrDefault();
+    
+
+                //Kiểm tra xem con vật này có phải của hợp đồng này không
+
+
+                //Kiểm tra xem loại bệnh có được trong loại bệnh bảo hành hay không
+                //var diseases = await _context.VaccinationRequirement.Where(p => p.OrderRequirementId.Equals(orderReq.Id)).ToListAsync();
+                //var isDisease = diseases.Where(p => p.DiseaseId.Equals(createDto.DiseaseId)).FirstOrDefault();
+                //if (isDisease == null) throw new Exception("Loại bệnh này không được bảo hành với hợp đồng này!");
+                //var dateInsu = DateTime.Now - procurmentLivestock.ExportedDate;
+                //var convertDate = dateInsu.Value.Days;
+                //if (convertDate < isDisease.InsuranceDuration) throw new Exception("Vật nuôi đã hết hạn bảo hành với vật nuôi này .");
+                InsuranceRequest requestData = new InsuranceRequest()
+                {
+                    Id = SlugId.New(),
+                    RequestLivestockId = livestock.Id,
+                    DiseaseId = createDto.DiseaseId,
+                    OtherReason = createDto.OtherReason,
+                    ImageUris = createDto.ImageUris,
+                    Status = insurance_request_status.CHỜ_DUYỆT,
+                    IsLivestockReturn = false,
+                    OrderId = procurment.Id,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
+                    CreatedBy = createDto.CreatedBy,
+                    UpdatedBy = createDto.CreatedBy,
+                    RequestLivestockStatus = insurance_request_livestock_status.KHÔNG_THU_HỒI
+                };
+                try
+                {
+                    _context.InsuranceRequests.Add(requestData);
+                    await _context.SaveChangesAsync();
+                    var responseData = _mapper.Map<InsurenceRequestDTO>(requestData);
+                    return responseData;
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(ex.Message + " Lỗi khi lưu vào database");
+                }
+            }
+            else
+            {
+
+                //Kiểm tra xem con vật có tồn tại trong hệ thống hay không
+                //Lý do: Vì có nhiều loại con vật có thể cùng mã kiểm dịch nên mưới phải check thế này để đảm bảo
+    
+
+
+                var procurmentLivestock = await _context.LivestockProcurements.Where(x => x.LivestockId.Equals(livestock.Id)).Include(x => x.ProcurementPackage).SingleOrDefaultAsync();
+                if (procurmentLivestock == null) throw new Exception("Vật nuôi này không có trong hợp đồng !");
+                var procurment = await _context.ProcurementPackages.Where(x => x.Id.Equals(procurmentLivestock.ProcurementPackageId)).Include(x => x.ProcurementDetails).SingleOrDefaultAsync();
+
+                //Kiểm tra hợp đồng có hợp lệ hay không
+                if (procurment == null) throw new Exception("Mã hợp đồng không hợp lệ");
+
+                //Kiểm tra loại vật nuôi có hợp lệ hay không
+
+                var orderReq = procurment.ProcurementDetails.Where(x => x.SpeciesId.Equals(livestock.SpeciesId)).FirstOrDefault();
+
+
+                //Kiểm tra xem loại bệnh có được trong loại bệnh bảo hành hay không
+                //var diseases = await _context.VaccinationRequirement.Where(p => p.ProcurementDetailId.Equals(orderReq.Id)).ToListAsync();
+                //var isDisease = diseases.Where(p => p.DiseaseId.Equals(createDto.DiseaseId)).SingleOrDefault();
+                //if (isDisease == null) throw new Exception("Loại bệnh này không được bảo hành với hợp đồng này!");
+
+                //var batchEx = await _context.BatchExportDetails.Where(x => x.LivestockId.Equals(createDto.Id)).FirstOrDefaultAsync();
+                //var dateInsu = DateTime.Now - batchEx.ExportDate;
+                //var convertDate = dateInsu.Value.Days;
+                //if (convertDate < isDisease.InsuranceDuration) throw new Exception("Vật nuôi đã hết hạn bảo hành với vật nuôi này .");
+
+                InsuranceRequest requestData = new InsuranceRequest()
+                {
+                    Id = SlugId.New(),
+                    RequestLivestockId = createDto.Id,
+                    DiseaseId = createDto.DiseaseId,
+                    OtherReason = createDto.OtherReason,
+                    ImageUris = createDto.ImageUris,
+                    Status = insurance_request_status.CHỜ_DUYỆT,
+                    IsLivestockReturn = false,
+                    ProcurementId = procurment.Id,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now,
+                    CreatedBy = createDto.CreatedBy,
+                    UpdatedBy = createDto.CreatedBy,
+                    RequestLivestockStatus = insurance_request_livestock_status.KHÔNG_THU_HỒI
+                };
+                try
+                {
+                    _context.InsuranceRequests.Add(requestData);
+                    await _context.SaveChangesAsync();
+                    var responseData = _mapper.Map<InsurenceRequestDTO>(requestData);
+                    return responseData;
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(ex.Message + " Lỗi khi lưu vào database");
+                }
+
+
+            }
         }
 
         public async Task<InsurenceRequestDTO> CreateInsurenceRequest(CreateInsurenceDTO createDto)
@@ -195,10 +321,10 @@ namespace DataAccess.Repository.Services
             }
         }
 
-        public async Task<CreateInsurenceDTO> CreateInsurenceRequestWithScan(CreateInsurenceQrDTO createDto)
+        public async Task<CreateInsurenceDTO> CreateInsurenceRequestWithScan(string id)
         {
             CreateInsurenceDTO data = new CreateInsurenceDTO();
-            var livestock = await _context.Livestocks.Where(x => x.Id.Equals(createDto.LivestockId)).FirstOrDefaultAsync();
+            var livestock = await _context.Livestocks.Where(x => x.Id.Equals(id)).FirstOrDefaultAsync();
             if (livestock == null)
             {
                 throw new Exception("Mã QR không chính xác, vui lòng thử lại!");
@@ -209,14 +335,14 @@ namespace DataAccess.Repository.Services
             }
             data.SpecieId = livestock.SpeciesId;
             data.LivestockInspectionCode = livestock.InspectionCode;
-            var procurmentDetail = await _context.LivestockProcurements.Where( x => x.LivestockId.Equals(createDto.LivestockId)).Include(x => x.ProcurementPackage).FirstOrDefaultAsync();
+            var procurmentDetail = await _context.LivestockProcurements.Where( x => x.LivestockId.Equals(id)).Include(x => x.ProcurementPackage).FirstOrDefaultAsync();
             if (procurmentDetail != null)
             {
                 data.Type = "0";
             }
             else
             {
-                var orderDetail = await _context.OrderDetails.Where(x => x.LivestockId.Equals(createDto.LivestockId)).Include(x => x.Order).FirstOrDefaultAsync();
+                var orderDetail = await _context.OrderDetails.Where(x => x.LivestockId.Equals(id)).Include(x => x.Order).FirstOrDefaultAsync();
                 if (orderDetail != null)
                 {
                     data.Type = "1";
@@ -254,11 +380,17 @@ namespace DataAccess.Repository.Services
             var insurance = await _context.InsuranceRequests.Where( x => x.Id.Equals(id) ).SingleOrDefaultAsync();
             if (insurance == null) throw new Exception("Mã bảo hành không hợp lệ");
             var livestock = await _context.Livestocks.Where(x => x.Id.Equals(insurance.RequestLivestockId)).SingleOrDefaultAsync();
+           
             if (insurance.OrderId != null)
             {
+                var orderReal = await _context.Orders.Where(x => x.Id.Equals(insurance.OrderId)).Include(x => x.Customer).FirstOrDefaultAsync();
                 var order = await _context.OrderRequirements.Where(x => x.OrderId.Equals(insurance.OrderId) && x.SpecieId.Equals(livestock.SpeciesId)).SingleOrDefaultAsync();
                 var vaccination = await _context.VaccinationRequirement.Where(x => x.OrderRequirementId.Equals(order.Id)).Include(x => x.Disease).ToListAsync();
-                response.Name = order.Id;
+                response.Id = orderReal.Code;
+                response.Name = "Đơn mua lẻ mã " + orderReal.Code;
+                response.CustomerName = orderReal.Customer.Fullname;
+                response.CustomerPhone = orderReal.Customer.Phone;
+                response.CustomerAddress = orderReal.Customer.Address;
                 foreach(var d in vaccination)
                 {
                     var vacxin = new VaccinationDto()
@@ -276,6 +408,7 @@ namespace DataAccess.Repository.Services
                 var vaccination = await _context.VaccinationRequirement.Where(x => x.ProcurementDetailId.Equals(procurment.Id)).Include(x => x.Disease).ToListAsync();
                 response.Name = procurment.ProcurementPackage.Name;
                 response.CustomerName = procurment.ProcurementPackage.Owner;
+                response.Id = procurment.ProcurementPackage.Code;
                 foreach (var d in vaccination)
                 {
                     var vacxin = new VaccinationDto()
@@ -357,8 +490,6 @@ namespace DataAccess.Repository.Services
             
             
             dtoList = dtoList.OrderBy(x => x.UpdatedAt)
-                    .Skip(filter.Skip)
-                    .Take(filter.Take)
                     .ToList();
 
             result.Items = dtoList;
@@ -402,7 +533,9 @@ namespace DataAccess.Repository.Services
                     Species = specie.Name,
                     ExportWeight = requestLivestock.WeightOrigin,
                     InspectionCodeRequest = requestLivestock.InspectionCode,
-                    DiseaseName = insuranceRequest.Disease.Name
+                    DiseaseName = insuranceRequest.Disease.Name,
+                    Status=insuranceRequest.Status,
+                    RejectReason = insuranceRequest.RejectReason
                 };
                 if (returnLivestock != null)
                 {
@@ -461,9 +594,19 @@ namespace DataAccess.Repository.Services
             {
                 var insurance = await _context.InsuranceRequests.Where(x => x.Id.Equals(data.Id)).SingleOrDefaultAsync();
                 if (insurance == null) throw new Exception("Mã bảo hành không hợp lệ");
-                insurance.Status = insurance_request_status.TỪ_CHỐI;
-                insurance.CancelledAt = DateTime.Now;
-                insurance.RejectReason = data.reasonReject;
+                if (insurance.Status.Equals(insurance_request_status.CHỜ_DUYỆT))
+                {
+                    insurance.Status = insurance_request_status.TỪ_CHỐI;
+                    insurance.CancelledAt = DateTime.Now;
+                    insurance.RejectReason = data.reasonReject;
+                }
+                else
+                {
+                    insurance.Status = insurance_request_status.ĐÃ_HỦY;
+                    insurance.CancelledAt = DateTime.Now;
+                    insurance.RejectReason = "Đơn đã được hủy bởi quản lý";
+                }
+
                 if(insurance.NewLivestockId != null)
                 {
                     var newLivestock = await _context.Livestocks.Where(x => x.Id.Equals(insurance.NewLivestockId)).SingleOrDefaultAsync();
@@ -475,7 +618,7 @@ namespace DataAccess.Repository.Services
             }
             catch (Exception ex)
             {
-                throw new Exception("Lỗi dữ liệu");
+                throw new Exception(ex.Message);
             }
         }
 
@@ -521,6 +664,30 @@ namespace DataAccess.Repository.Services
                 insurance.Status = insurance_request_status.HOÀN_THÀNH;
                 insurance.CompletedAt = DateTime.Now;
                 insurance.UpdatedAt = DateTime.Now;
+                if (insurance.RequestLivestockStatus.Equals(insurance_request_livestock_status.CHỜ_THU_HỒI))
+                {
+                    insurance.RequestLivestockStatus = insurance_request_livestock_status.ĐÃ_THU_HỒI;
+                    var livestock = await _context.Livestocks.Where(x => x.Id.Equals(insurance.RequestLivestockId)).SingleOrDefaultAsync();
+                    livestock.Status = livestock_status.ỐM;
+                }
+                if (insurance.OrderId != null)
+                {
+                    var orderDetail = await _context.OrderDetails.Where(x => x.LivestockId.Equals(insurance.RequestLivestockId)).FirstOrDefaultAsync();
+                    orderDetail.LivestockId = newLivestock.Id;
+                    orderDetail.ExportedDate = DateTime.Now;
+                    orderDetail.UpdatedAt = DateTime.Now;
+                }
+                else
+                {
+                    var batchExport = await _context.BatchExportDetails.Where(x => x.LivestockId.Equals(insurance.RequestLivestockId)).FirstOrDefaultAsync();
+                    batchExport.LivestockId = newLivestock.Id;
+                    batchExport.WeightExport = newLivestock.WeightExport;
+                    batchExport.ExportDate = DateTime.Now;
+                    batchExport.UpdatedAt = DateTime.Now;
+                    var procurmentPackage = await _context.LivestockProcurements.Where(x => x.LivestockId.Equals(insurance.RequestLivestockId)).FirstOrDefaultAsync();
+                    procurmentPackage.LivestockId = newLivestock.Id;
+                    procurmentPackage.UpdatedAt = DateTime.Now;
+                }
                 await _context.SaveChangesAsync();
                 var response = _mapper.Map<InsurenceRequestDTO>(insurance);
                 return response;
@@ -579,6 +746,10 @@ namespace DataAccess.Repository.Services
                     var requestLivestock = await _context.Livestocks.Where(x => x.Id.Equals(insurance.RequestLivestockId)).SingleOrDefaultAsync();
                     var livestockNew = await _context.Livestocks.Where(x => x.InspectionCode.Equals(updateDto.LivestockId) && x.SpeciesId.Equals(requestLivestock.SpeciesId)).SingleOrDefaultAsync();
                     if (livestockNew == null) throw new Exception("Mã vật nuôi hoặc loại vật nuôi không chính xác");
+                if (!livestockNew.Status.Equals(livestock_status.KHỎE_MẠNH))
+                {
+                    throw new Exception("Vật nuôi này không thể thêm do tình trạng.");
+                }
                     insurance.Status = insurance_request_status.CHỜ_BÀN_GIAO;
                     insurance.UpdatedAt = DateTime.Now;
                     insurance.UpdatedBy = updateDto.UpdatedBy;

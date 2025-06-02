@@ -34,6 +34,9 @@ namespace BusinessObjects.Dtos
         public batch_vaccination_status Status { get; set; }
         [Required(ErrorMessage = "Người tạo không được để trống")]
         public string CreatedBy { get; set; }
+
+        public string? ProcurementId { get; set; }
+        public string? SpecieId { get; set; }
     }
     public class BatchVacinationUpdate
     {
@@ -68,6 +71,8 @@ namespace BusinessObjects.Dtos
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public medicine_type MedcicalType { get; set; }
         public string Symptom { get; set; }
+        public string MedicineName { get; set; }
+        public string DiseaseName { get; set; }
         public DateTime? DateSchedule { get; set; }
         public string ConductedBy { get; set; }
         [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -201,7 +206,9 @@ namespace BusinessObjects.Dtos
     }
     public class DiseaseRequireForSpecie
     {
+        public string DiseaseId { get; set; }
         public string DiseaseName { get; set; }
+        public string SpecieId { get; set; }
         public string SpecieName { get; set; }
         public string BatchVaccinationId { get; set; }
         public int HasDone { get; set; }

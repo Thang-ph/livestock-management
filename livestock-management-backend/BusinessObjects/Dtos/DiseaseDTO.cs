@@ -27,12 +27,14 @@ namespace BusinessObjects.Dtos
         /// </summary>
         /// <example>Lở mồm long móng</example>
         public string Name { get; set; }
+        public string Description { get; set; }
+        public string Sympton { get; set; }
     }
 
     /// <summary>
     /// Danh sách bệnh với thông tin tổng số bệnh
     /// </summary>
-    public class ListDiseases : ResponseListModel<DiseaseSummary>
+    public class ListDiseases : ResponseListModel<DiseaseDTO>
     {
     }
 
@@ -65,12 +67,15 @@ namespace BusinessObjects.Dtos
         /// <example>Bệnh truyền nhiễm nguy hiểm ở trâu bò</example>
         public string? Description { get; set; }
 
+        public int DefaultInsuranceDuration { get; set; }
+
         /// <summary>
         /// Loại bệnh
         /// </summary>
         /// <example>TRUYỀN_NHIỄM_NGUY_HIỂM</example>
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public disease_type Type { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 
     /// <summary>
@@ -109,10 +114,38 @@ namespace BusinessObjects.Dtos
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public disease_type Type { get; set; }
 
+        public int? DefaultInsuranceDuration { get; set; } = 21;
         /// <summary>
         /// Người yêu cầu cập nhật (tùy chọn)
         /// </summary>
         /// <example>admin</example>
-        public string requestedBy { get; set; }
+        public string? requestedBy { get; set; }
+    }
+
+    public class GetStatsDiseaseByMonthFilter
+    {
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDateDate { get; set; }
+        public string? DiseaseId { get; set; }
+    }
+
+    public class StatsDiseaseSummary : ResponseListModel<StatsDiseaseByMonth>
+    {
+
+    }
+
+    public class StatsDiseaseByMonth
+    {
+        public string DiseaseId { get; set; }
+        public string DiseaseName { get; set; }
+        public IEnumerable<QuantityByMonth> quantitiesByMonth { get; set; }
+    }
+
+    public class QuantityByMonth
+    {
+        public string StringDate { get; set; }
+        public DateTime Date { get; set; }
+        public int Quantity { get; set; }
+        public decimal Ratio { get; set; }
     }
 }

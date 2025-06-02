@@ -10,7 +10,7 @@ export default function ChiTietLoNhapPage() {
         className="relative flex-1 space-y-4 overflow-y-auto  px-4"
         breadcrumbs={[
           { title: 'Trang chủ', link: '/' },
-          { title: 'Lộ nhập', link: '/lo-nhap' },
+          { title: 'Lộ nhập', link: '/admin/lo-nhap' },
           { title: 'Chi tiết lô nhập', link: '/goi-thau' }
         ]}
       >

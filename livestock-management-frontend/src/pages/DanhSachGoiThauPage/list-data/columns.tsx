@@ -134,6 +134,41 @@ export const columns: ColumnDef<any>[] = [
     }
   },
   {
+    accessorKey: 'handover',
+    header: 'Tiến độ chọn',
+    enableSorting: true,
+    cell: ({ row }) => {
+      const completeCount = row.original.handoverinformation.totalSelected;
+      const totalCount = row.original.handoverinformation.totalCount;
+      const percentage =
+        totalCount > 0 ? Math.round((completeCount / totalCount) * 100) : 0;
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="w-full max-w-[180px] space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Package2Icon className="h-3 w-3" />
+                    {completeCount}/{totalCount}
+                  </span>
+                  <span className="font-medium">{percentage}%</span>
+                </div>
+                <Progress value={percentage} className="h-2" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>
+                Tổng chọn: {completeCount} / Tổng cần bàn giao: {totalCount}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+  },
+  {
     accessorKey: 'status',
     header: 'Trạng thái',
     enableSorting: true,

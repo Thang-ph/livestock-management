@@ -4,7 +4,7 @@ import { useState } from 'react';
 import ListData from '../../list-data';
 import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -57,10 +57,9 @@ export function OverViewTab() {
   const pageLimit = 10;
   const params = useParams();
   const id = params?.id as string;
-
   const { data, isPending } = useGetLoNhapById(id);
-  const { data: loaiVatNuoi, isLoading: isLoadingLoaiVatNuoi } =
-    useGetSpecieType();
+
+  const { data: loaiVatNuoi } = useGetSpecieType();
   const [animalType, setAnimalType] = useState<string>('BÒ');
 
   const { data: listTenVatNuoi } = useGetSpeciceName(animalType);
@@ -84,22 +83,6 @@ export function OverViewTab() {
     dob: new Date(),
     requestedBy: 'admin'
   });
-
-  const handleOpenAddForm = () => {
-    setShowAddForm(true);
-    // Set default animal type based on first item in loaiVatNuoi if available
-    if (loaiVatNuoi && loaiVatNuoi.length > 0) {
-      setAnimalType(loaiVatNuoi[0]);
-      // Map animal type string to numeric index
-      const typeIndex = loaiVatNuoi.findIndex(
-        (type) => type === loaiVatNuoi[0]
-      );
-      setFormData((prev) => ({
-        ...prev,
-        specieType: typeIndex >= 0 ? typeIndex : 0
-      }));
-    }
-  };
 
   // Đóng form thêm mới
   const handleCloseAddForm = () => {
@@ -179,15 +162,7 @@ export function OverViewTab() {
     <>
       <div className="grid gap-6 rounded-md p-4 pt-0">
         <h1 className="text-center font-bold">DANH SÁCH VẬT NUÔI</h1>
-        <div className="flex justify-end gap-4">
-          <Button
-            onClick={handleOpenAddForm}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Thêm mới
-          </Button>
-        </div>
+        <div className="flex justify-end gap-4"></div>
 
         {isPending ? (
           <div className="p-5">

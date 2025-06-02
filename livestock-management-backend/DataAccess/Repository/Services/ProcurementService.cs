@@ -3,8 +3,10 @@ using BusinessObjects.ConfigModels;
 using BusinessObjects.Dtos;
 using BusinessObjects.Models;
 using DataAccess.Repository.Interfaces;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileSystemGlobbing;
 using OfficeOpenXml;
 using OfficeOpenXml.Table;
 using System.Data;
@@ -15,10 +17,12 @@ namespace DataAccess.Repository.Services
     public class ProcurementService : IProcurementRepository
     {
         private readonly LmsContext _context;
+        private readonly ICloudinaryRepository _cloudinaryService;
 
-        public ProcurementService(LmsContext context)
+        public ProcurementService(LmsContext context, ICloudinaryRepository cloudinaryService)
         {
             _context = context;
+            _cloudinaryService = cloudinaryService;
         }
 
         public async Task<ListProcurements> GetListProcurements(ListProcurementsFilter filter)
@@ -70,8 +74,8 @@ namespace DataAccess.Repository.Services
             result.Items = procurements
     .Select(o =>
     {
-        var batch = o.BatchExports?
-            .FirstOrDefault(b => b.Id==o.BatchExports.FirstOrDefault().Id); // chọn batch complete
+        var batches = o.BatchExports?
+            .Where(b => b.Id==o.BatchExports.FirstOrDefault().Id); // chọn batch complete
 
         return new ProcurementSummary
         {
@@ -83,19 +87,19 @@ namespace DataAccess.Repository.Services
             ExpirationDate = o.ExpirationDate,
             CreatedAt = o.CreatedAt,
             Status = o.Status,
-            TotalRequired = batch?.Total ?? 0,
-            TotalExported = (batch != null) ? (batch.Total - batch.Remaining) : 0,
+            TotalRequired = batches.Sum(b => b.Total),
+            TotalExported = batches.Sum(b => b.Total - b.Remaining),
             Handoverinformation = new HandoverInformation
             {
-                totalSelected = batch?.BatchExportDetails?.Count(x => x.Status == batch_export_status.CHỜ_BÀN_GIAO) ?? 0,
-                totalCount = batch?.Total ?? 0,
-                completeCount = (batch?.Total ?? 0) - (batch?.Remaining ?? 0)
+                totalSelected = batches
+            .SelectMany(b => b.BatchExportDetails ?? new List<BatchExportDetail>())
+            .Count(d => d.Status == batch_export_status.CHỜ_BÀN_GIAO),
+                totalCount = batches.Sum(b => b.Total),
+                completeCount = batches.Sum(b => b.Total - b.Remaining)
             }
         };
     })
     .OrderByDescending(o => o.CreatedAt)
-    .Skip(filter?.Skip ?? 0)
-    .Take(filter?.Take ?? 10)
     .ToArray();
 
 
@@ -140,7 +144,7 @@ namespace DataAccess.Repository.Services
                 SuccessDate = null,
                 ExpirationDate = request.ExpiredDuration == null ?
                     null : DateTime.Now.AddDays(request.ExpiredDuration ?? 0),
-                Status = procurement_status.ĐANG_ĐẤU_THẦU,
+                Status = procurement_status.ĐANG_CHỜ_CHỌN,
                 Description = request.Description,
             };
 
@@ -212,7 +216,7 @@ namespace DataAccess.Repository.Services
             var species = await _context.Species
                 .Where(o => procurementDetails.Select(x => x.SpeciesId).Contains(o.Id))
                 .ToDictionaryAsync(o => o.Id, o => o.Name);
-            var batchExport =_context.BatchExports.FirstOrDefault(x=>x.ProcurementPackageId==id);
+            var batches = await _context.BatchExports.Where(x=>x.ProcurementPackageId==id).Include(x => x.BatchExportDetails).ToListAsync();
             var result = new ProcurementGeneralInfo
             {
                 Id = procurement.Id,
@@ -224,10 +228,11 @@ namespace DataAccess.Repository.Services
                 ExpiredDuration = procurement.ExpiredDuration,
                 ExpirationDate = procurement.ExpirationDate,
                 Description = procurement.Description,
-                TotalExported=(batchExport?.Total-batchExport?.Remaining)??0,
-                TotalRequired=batchExport?.Total??0,
-                TotalSelected = batchExport?.BatchExportDetails?
-                   .Count(x => x.Status == batch_export_status.CHỜ_BÀN_GIAO) ?? 0,
+                TotalSelected = batches
+            .SelectMany(b => b.BatchExportDetails ?? new List<BatchExportDetail>())
+            .Count(d => d.Status == batch_export_status.CHỜ_BÀN_GIAO),
+                TotalExported = batches.Sum(b => b.Total),
+                TotalRequired = batches.Sum(b => b.Total - b.Remaining),
                 CreatedBy = user?.UserName ??"SYS",
                 Details = procurementDetails
                     .OrderBy(o => o.CreatedAt)
@@ -343,43 +348,41 @@ namespace DataAccess.Repository.Services
             return result;
         }
 
-        public async Task<Stream> GetTemplateListCustomers(string id)
+        public async Task<string> GetTemplateListCustomers(string id)
         {
             var procurementPackage = await _context.ProcurementPackages.FindAsync(id) ??
                 throw new Exception("Không tìm thấy gói thầu");
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
             using var package = new ExcelPackage(new MemoryStream());
-            var worksheet = package.Workbook.Worksheets.Add($"{procurementPackage.Code}");
+          var worksheet = package.Workbook.Worksheets.Add($"{procurementPackage.Code}");
 
-            var richTextRow1 = worksheet.Cells["A1"].RichText;
-            var richTextRow2 = worksheet.Cells["A2"].RichText;
-            var richTextRow3 = worksheet.Cells["A3"].RichText;
-            var richTextRow4 = worksheet.Cells["A5"].RichText;
+// Ghi tiêu đề bảng
+worksheet.Cells["A1"].Value = "DANH SÁCH LỰA CHỌN NGHIỆM THU ĐÁNH GIÁ CHẤT LƯỢNG";
+worksheet.Cells["A1"].Style.Font.Bold = true;
 
-            var boldSegmentRow1 = richTextRow1.Add("MÃ GÓI THẦU: ");
-            boldSegmentRow1.Bold = true;
-            richTextRow1.Add($"{procurementPackage.Code}");
-            var boldSegmentRow2 = richTextRow2.Add("TÊN GÓI THẦU: ");
-            boldSegmentRow2.Bold = true;
-            richTextRow2.Add($"{procurementPackage.Name}");
-            var boldSegmentRow3 = richTextRow3.Add("BÊN MỜI THẦU: ");
-            boldSegmentRow3.Bold = true;
-            richTextRow3.Add($"{procurementPackage.Owner}");
+// Tạo bảng dữ liệu
+var columns = new string[] { "Tên", "Địa chỉ", "Số điện thoại", "Ghi chú", "Số lượng" };
+var data = new DataTable();
+data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
 
-            worksheet.Cells["A5"].Value = $"DANH SÁCH LỰA CHỌN NGHIỆM THU ĐÁNH GIÁ CHẤT LƯỢNG ";
-            worksheet.Cells["A5"].Style.Font.Bold = true;
+// Ghi dữ liệu từ DataTable vào Excel (bắt đầu từ A2)
+worksheet.Cells["A2"].LoadFromDataTable(data, true, OfficeOpenXml.Table.TableStyles.Light1);
 
-            var columns = new string[] { "Tên", "Địa chỉ", "Số điện thoại", "Ghi chú", "Số lượng" };
-            var data = new DataTable();
-            data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+// Định dạng cột (nếu cần giữ số điện thoại, số lượng là dạng text để tránh mất số 0 đầu)
+worksheet.Column(3).Style.Numberformat.Format = "@"; // Số điện thoại
+worksheet.Column(5).Style.Numberformat.Format = "@"; // Số lượng (nếu cần định dạng dạng văn bản)
 
-            worksheet.Cells["A6"].LoadFromDataTable(data, true, TableStyles.Light1);
-            worksheet.Column(3).Style.Numberformat.Format = "@";
-            worksheet.Column(5).Style.Numberformat.Format = "@";
 
             await package.SaveAsync();
-            return package.Stream;
+
+            var stream = new MemoryStream();
+            package.SaveAs(stream);
+            stream.Position = 0;
+
+            var fileUrl = await _cloudinaryService.UploadFileStreamAsync(CloudFolderFileTemplateName, "Template_Dien_Danh_Sach_Khach_Hang" + DateTime.Now.ToString("ddMMyyyy") + ".xlsx", stream);
+
+            return fileUrl;
         }
 
         public async Task ImportListCustomers(string procurementId, string requestedBy, IFormFile file)
@@ -421,14 +424,14 @@ namespace DataAccess.Repository.Services
                     int colCount = worksheet.Dimension.Columns;
 
                     //validate procurement package info
-                    var procurementCodeStr = worksheet.Cells["A1"].Value?.ToString();
-                    if (string.IsNullOrEmpty(procurementCodeStr))
-                        throw new Exception("Mã gói thầu không hợp lệ");
-                    var code = procurementCodeStr.Trim().Split(":").Last();
-                    if (string.IsNullOrEmpty(code))
-                        throw new Exception("Mã gói thầu không hợp lệ");
-                    if (procurementPackage.Code.ToUpper() != code.Trim().ToUpper())
-                        throw new Exception($"Không tìm thấy mã gói thầu {code}");
+                    //var procurementCodeStr = worksheet.Cells["A1"].Value?.ToString();
+                    //if (string.IsNullOrEmpty(procurementCodeStr))
+                    //    throw new Exception("Mã gói thầu không hợp lệ");
+                    //var code = procurementCodeStr.Trim().Split(":").Last();
+                    //if (string.IsNullOrEmpty(code))
+                    //    throw new Exception("Mã gói thầu không hợp lệ");
+                    //if (procurementPackage.Code.ToUpper() != code.Trim().ToUpper())
+                    //    throw new Exception($"Không tìm thấy mã gói thầu {code}");
 
                     //validate column headers list customers
                     var requiredColumns = new string[] {
@@ -447,12 +450,12 @@ namespace DataAccess.Repository.Services
                         .ToDictionary(o => o.o, o => o.index);
                     for (var i = 1; i <= colCount; i++)
                     {
-                        var columnHeader = worksheet.Cells[6, i].Value?.ToString();
+                        var columnHeader = worksheet.Cells[2, i].Value?.ToString();
                         if (string.IsNullOrEmpty(columnHeader))
-                            throw new Exception($"Trống tên cột ở ô [6:{i}]");
+                            throw new Exception($"Trống tên cột ở ô [2:{i}]");
                         columnHeader = columnHeader.Trim().ToLower();
                         if (!dicColumnIndexes.ContainsKey(columnHeader))
-                            throw new Exception($"Tên cột không hợp lệ ở ô [6:{i}]");
+                            throw new Exception($"Tên cột không hợp lệ ở ô [2:{i}]");
                         dicColumnIndexes[columnHeader] = i;
                     }
 
@@ -462,7 +465,7 @@ namespace DataAccess.Repository.Services
                     var idxPhone = dicColumnIndexes["số điện thoại"];
                     var idxNote = dicColumnIndexes["ghi chú"];
                     var idxQuantity = dicColumnIndexes["số lượng"];
-                    for (int row = 7; row <= rowCount; row++)
+                    for (int row = 3; row <= rowCount; row++)
                     {
                         var customerName = worksheet.Cells[row, idxName].Value?.ToString();
                         if (string.IsNullOrEmpty(customerName))
@@ -763,6 +766,58 @@ namespace DataAccess.Repository.Services
             await _context.SaveChangesAsync();
             result = true;
             return result;
+        }
+
+        public async Task<List<HandOverProcessProcurement>> GetProcessHandOverProcurementList()
+        {
+            List<ProcurementPackage> procurementPackages = _context.ProcurementPackages.Include(x=>x.BatchExports).ThenInclude(x=>x.BatchExportDetails).Where(x=>x.Status==procurement_status.CHỜ_BÀN_GIAO||x.Status==procurement_status.ĐANG_BÀN_GIAO).ToList();
+            List<HandOverProcessProcurement> handOverProcessProcurements = new List<HandOverProcessProcurement>();
+            foreach(ProcurementPackage procurement in procurementPackages)
+            {
+                HandOverProcessProcurement handOverProcessProcurement= new HandOverProcessProcurement
+                {
+                    ProcurementId = procurement.Id,
+                    SuccessDate = procurement.SuccessDate,
+                    ExpirationDate = procurement.ExpirationDate
+                    ,
+                    TotalRequired = procurement.BatchExports.Sum(x => x.Total)
+                    ,
+                    TotalHandover = procurement.BatchExports
+    .SelectMany(b => b.BatchExportDetails ?? new List<BatchExportDetail>())
+    .Count(d => d.Status == batch_export_status.ĐÃ_BÀN_GIAO)
+                };
+                handOverProcessProcurements.Add(handOverProcessProcurement);
+            }
+            return handOverProcessProcurements;
+        }
+        public async Task<bool> AcceptProcurementPackage(ProcurementStatus status)
+        {
+            var result = false;
+            var procurementPackagesModels = await _context.ProcurementPackages.FirstOrDefaultAsync(x => x.Id == status.Id);
+            if (procurementPackagesModels == null) throw new Exception("Không tìm thấy gói thầu");
+            procurementPackagesModels.Status = procurement_status.ĐANG_CHỜ_CHỌN;
+            procurementPackagesModels.UpdatedAt = DateTime.Now;
+            procurementPackagesModels.UpdatedBy = status.RequestedBy;
+            procurementPackagesModels.CompletionDate= DateTime.Now;
+         
+            await _context.SaveChangesAsync();
+            result = true;
+            return result;
+        }
+
+        public async Task<ProcurementOverview> GetPrucrementPreview()
+        {
+            List<ProcurementPackage> procurementPackages = _context.ProcurementPackages.ToList();
+            ProcurementOverview procurementOverview = new ProcurementOverview
+            {
+                bidding = procurementPackages.Where(x => x.Status == procurement_status.ĐANG_ĐẤU_THẦU).Count(),
+                cancel = procurementPackages.Where(x => x.Status == procurement_status.ĐÃ_HỦY).Count(),
+                complete = procurementPackages.Where(x => x.Status == procurement_status.HOÀN_THÀNH).Count(),
+                waitHandOver = procurementPackages.Where(x => x.Status == procurement_status.CHỜ_BÀN_GIAO).Count(),
+                waitSelect = procurementPackages.Where(x => x.Status == procurement_status.ĐANG_CHỜ_CHỌN).Count(),
+                handOver = procurementPackages.Where(x => x.Status == procurement_status.ĐANG_BÀN_GIAO).Count(),
+            };
+            return procurementOverview;
         }
     }
 }

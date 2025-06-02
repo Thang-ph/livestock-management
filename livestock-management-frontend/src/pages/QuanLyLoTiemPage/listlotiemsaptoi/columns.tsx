@@ -3,9 +3,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import __helpers from '@/helpers';
 import { useSearchParams } from 'react-router-dom';
-import { CellAction } from './cell-action';
-import { Badge } from '@/components/ui/badge';
-import { Calendar, CheckCircle, Loader2 } from 'lucide-react';
 
 export const columns: ColumnDef<any>[] = [
   {

@@ -65,7 +65,8 @@ public class ImportService : IImportRepository
         batchImportModels.UpdatedAt = DateTime.Now;
         batchImportModels.UpdatedBy = status.RequestedBy ?? "SYS";
 
-        var checkPinnedBatch = await _context.PinnedBatchImports.FirstOrDefaultAsync(x => x.BatchImportId == status.Id && x.CreatedBy == status.RequestedBy);
+        var checkPinnedBatch = await _context.PinnedBatchImports
+                .FirstOrDefaultAsync(x => x.BatchImportId == status.Id);
         if (checkPinnedBatch != null)
             _context.PinnedBatchImports.Remove(checkPinnedBatch);
 
@@ -86,24 +87,28 @@ public class ImportService : IImportRepository
         var listBatchImportDetails = await _context.BatchImportDetails
                     .Include(l => l.Livestock)
                     .Where(x => x.BatchImportId == status.Id
-                    && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null)).ToListAsync();
+                    && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
+                    .ToArrayAsync();
         if (!listBatchImportDetails.Any())
             throw new Exception("Lô nhập chưa có danh sách thông tin vật nuôi, không thể hoàn thành");
 
-        var count = listBatchImportDetails.Count();
-        if (count < batchImportModels.EstimatedQuantity)
-            throw new Exception("Lô nhập chưa đủ " + batchImportModels.EstimatedQuantity
-                + " vật nuôi, còn thiếu " + (batchImportModels.EstimatedQuantity - count)
-                + " vật nuôi, chưa thể hoàn thành ");
+        //var count = listBatchImportDetails.Count();
+        //if (count < batchImportModels.EstimatedQuantity)
+        //    throw new Exception("Lô nhập chưa đủ " + batchImportModels.EstimatedQuantity
+        //        + " vật nuôi, còn thiếu " + (batchImportModels.EstimatedQuantity - count)
+        //        + " vật nuôi, chưa thể hoàn thành ");
 
         foreach (var details in listBatchImportDetails)
         {
             if (details.Status == batch_import_status.CHỜ_NHẬP && details.Livestock.Status != livestock_status.CHẾT)
             {
                 details.Status = batch_import_status.ĐÃ_NHẬP;
+                details.Livestock.Status = livestock_status.KHỎE_MẠNH;
+                details.Livestock.UpdatedAt = DateTime.Now;
+                details.Livestock.UpdatedBy = status.RequestedBy ?? "SYS";
                 details.ImportedDate = DateTime.Now;
                 details.UpdatedAt = DateTime.Now;
-                details.UpdatedBy = status.RequestedBy;
+                details.UpdatedBy = status.RequestedBy ?? "SYS";
             }
         }
 
@@ -112,7 +117,8 @@ public class ImportService : IImportRepository
         batchImportModels.UpdatedAt = DateTime.Now;
         batchImportModels.UpdatedBy = status.RequestedBy ?? "SYS";
 
-        var checkPinnedBatch = await _context.PinnedBatchImports.FirstOrDefaultAsync(x => x.BatchImportId == status.Id && x.CreatedBy == status.RequestedBy);
+        var checkPinnedBatch = await _context.PinnedBatchImports
+            .FirstOrDefaultAsync(x => x.BatchImportId == status.Id);
         if(checkPinnedBatch != null)
             _context.PinnedBatchImports.Remove(checkPinnedBatch);
 
@@ -393,14 +399,10 @@ public class ImportService : IImportRepository
             // Lấy tổng số lượng cho phân trang
             var totalCount = await query.CountAsync();
 
-            // Áp dụng phân trang
-            var skip = filter.Skip;
-            var take = filter.Take > 0 ? filter.Take : 10;
+
 
             var resultsRaw = await query
                 .OrderByDescending(x => x.CreatedAt)
-                .Skip(skip)
-                .Take(take)
                 .ToListAsync();
 
             // Truy xuất thông tin người dùng và ánh xạ kết quả
@@ -447,7 +449,6 @@ public class ImportService : IImportRepository
         }
     }
 
-
     public async Task<BatchImport> GetBatchImportById(string id)
     {
         var batchImport = await _context.BatchImports.FirstOrDefaultAsync(x => x.Id == id.Trim());
@@ -456,7 +457,6 @@ public class ImportService : IImportRepository
 
         return batchImport;
     }
-
 
     public async Task<bool> DeleteLivestockFromBatchImport(string importDetailId)
     {
@@ -471,7 +471,7 @@ public class ImportService : IImportRepository
         if (batchImport.Status == batch_import_status.HOÀN_THÀNH || batchImport.Status == batch_import_status.ĐÃ_HỦY)
             throw new Exception("Lô nhập này đã hoàn thành hoặc đã hủy không tồn tại");
 
-        if (importBatchDetails.Status == batch_import_status.ĐÃ_NHẬP)
+        if (importBatchDetails.Status == batch_import_status.ĐÃ_NHẬP || importBatchDetails.ImportedDate != null)
             throw new Exception("Loài vật đã được nhập không thể xóa");
 
         _context.BatchImportDetails.Remove(importBatchDetails);
@@ -521,7 +521,7 @@ public class ImportService : IImportRepository
             throw new Exception("Không tìm thấy lô nhập");
 
         if (batchImport.Status == batch_import_status.HOÀN_THÀNH || batchImport.Status == batch_import_status.ĐÃ_HỦY)
-            throw new Exception("Lô nhập đã thành công hoặc bị hủy, không được phép xóa");
+            throw new Exception("Lô nhập đã thành công hoặc bị hủy, không được phép sửa");
 
         var livestock = await _context.Livestocks.FirstOrDefaultAsync(x => x.Id == batchimportDetails.LivestockId) ??
             throw new Exception("Không tìm thấy vật nuôi");
@@ -570,11 +570,12 @@ public class ImportService : IImportRepository
         if (batchImport.Status == batch_import_status.HOÀN_THÀNH || batchImport.Status == batch_import_status.ĐÃ_HỦY)
             throw new Exception("Không thể thêm khi đã hoàn thành hoặc bị hủy");
 
-        var count = await _context.BatchImportDetails
-                        .Include(l => l.Livestock)
-                        .Where(x => x.BatchImportId == batchImportId
-                         && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
-                        .CountAsync();
+        //var count = await _context.BatchImportDetails
+        //                .Include(l => l.Livestock)
+        //                .Where(x => x.BatchImportId == batchImportId
+        //                 && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
+        //                .CountAsync();
+
         //if (count == batchImport.EstimatedQuantity)
         //    throw new Exception("Lô nhập đã đủ với số lượng dự kiến không thể thêm mới");
 
@@ -600,25 +601,25 @@ public class ImportService : IImportRepository
         if (livestockAddModel.Dob != null && livestockAddModel.Dob > DateTime.Now)
             throw new Exception("Ngày sinh không thể quá hôm nay");
 
-        //STATUS CHANGE WARNING: kiem tra danh sach co vat nuoi chua de chuyen status thanh dang chon
-        var listBatchImportDetails = await _context.BatchImportDetails
-            .Include(l => l.Livestock)
-            .Where(x => x.BatchImportId == batchImportId
-            && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null)).ToArrayAsync();
-        //if (!listBatchImportDetails.Any())
-        //    batchImport.Status = batch_import_status.ĐANG_CHỌN;
+        //var listBatchImportDetails = await _context.BatchImportDetails
+        //    .Include(l => l.Livestock)
+        //    .Where(x => x.BatchImportId == batchImportId
+        //    && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
+        //    .ToArrayAsync();
 
         //Add livestock info
         livestock.Id = livestockAddModel.Id;
         livestock.InspectionCode = livestockAddModel.InspectionCode;
         livestock.SpeciesId = specie.Id;
-        livestock.Status = livestockAddModel.LivestockStatus ?? livestock_status.KHỎE_MẠNH;
+        livestock.Status = livestock_status.CHỜ_NHẬP;
         livestock.Gender = livestockAddModel.Gender ?? livestock_gender.ĐỰC;
         livestock.Color = livestockAddModel.Color ?? "Nâu";
-        livestock.WeightOrigin = livestockAddModel.Weight ?? 100;
+        livestock.WeightOrigin = livestockAddModel.Weight ?? null;
         livestock.Dob = livestockAddModel.Dob ?? null;
         livestock.UpdatedAt = DateTime.Now;
         livestock.UpdatedBy = livestockAddModel.RequestedBy ?? "SYS";
+        livestock.Origin = "Việt Nam";
+        livestock.WeightEstimate = livestock.WeightOrigin;
 
         //Add batchimport details
         var batchImportDetails = new BatchImportDetail();
@@ -676,11 +677,12 @@ public class ImportService : IImportRepository
         //{
         //    batchImport.Status = batch_import_status.CHỜ_NHẬP;
 
-            var pinnedBatchImport = await _context.PinnedBatchImports
-                .FirstOrDefaultAsync(x => x.BatchImportId == batchImportId
-                && x.CreatedBy == livestockAddModel.RequestedBy);
-            if(pinnedBatchImport != null)
-            _context.PinnedBatchImports.Remove(pinnedBatchImport);
+        //    var pinnedBatchImport = await _context.PinnedBatchImports
+        //        .FirstOrDefaultAsync(x => x.BatchImportId == batchImportId
+        //        && x.CreatedBy == livestockAddModel.RequestedBy);
+        //    if(pinnedBatchImport != null)
+        //    _context.PinnedBatchImports.Remove(pinnedBatchImport);
+        //}
 
         //Save data
         await _context.SearchHistories.AddAsync(searchHistory);
@@ -753,8 +755,12 @@ public class ImportService : IImportRepository
         };
     }
 
-    public async Task<PinnedBatchImport> AddToPinImportBatch(string batchImportId, string requestedBy)
+    public async Task<bool> AddToPinImportBatch(string batchImportId, string?  requestedBy)
     {
+        var batchImport = await _context.BatchImports.FirstOrDefaultAsync(x => x.Id == batchImportId);
+        if (batchImport == null)
+            throw new Exception("Không tìm thấy lô nhập");
+
         var pinBatch = await _context.PinnedBatchImports.FirstOrDefaultAsync(x => x.CreatedBy == requestedBy && x.BatchImportId == batchImportId);
         if (pinBatch != null)
             throw new Exception("Lô nhập này đã tồn tại sẵn trong mục ghim");
@@ -762,15 +768,15 @@ public class ImportService : IImportRepository
         var result = new PinnedBatchImport();
         result.Id = SlugId.New();
         result.BatchImportId = batchImportId;
-        result.CreatedBy = requestedBy;
+        result.CreatedBy = requestedBy ?? "SYS";
         result.CreatedAt = DateTime.Now;
-        result.UpdatedBy = requestedBy;
+        result.UpdatedBy = requestedBy ?? "SYS";
         result.UpdatedAt = DateTime.Now;
 
         await _context.PinnedBatchImports.AddAsync(result);
         await _context.SaveChangesAsync();
 
-        return result;
+        return true;
     }
 
     public async Task<ListPinnedImportBatches> GetListPinnedBatcImport(string userId)
@@ -855,7 +861,9 @@ public class ImportService : IImportRepository
         };
 
         var batchImports = await _context.BatchImports
-            .Where(x => x.Status == batch_import_status.CHỜ_NHẬP)
+            .Where(x => x.Status != batch_import_status.HOÀN_THÀNH
+            && x.Status != batch_import_status.ĐÃ_HỦY
+            )
             .ToArrayAsync();
 
 
@@ -1057,15 +1065,33 @@ public class ImportService : IImportRepository
         if (batchImportDetail.ImportedDate != null)
             throw new Exception("Loài vật đã được nhập");
 
+        //Delete pin if import start
+        var pinnedBatchImport = await _context.PinnedBatchImports
+            .FirstOrDefaultAsync(x => x.BatchImportId == batchImportDetail.BatchImportId);
+        if (pinnedBatchImport != null)
+            _context.PinnedBatchImports.Remove(pinnedBatchImport);
+
         //Update batchImport Details
         batchImportDetail.ImportedDate = DateTime.Now;
         batchImportDetail.Status = batch_import_status.ĐÃ_NHẬP;
         batchImportDetail.UpdatedBy = requestedBy ?? "SYS";
         batchImportDetail.UpdatedAt = DateTime.Now;
 
+        //Update livestock 
+        livestock.Status = livestock_status.KHỎE_MẠNH;
+        livestock.UpdatedAt = DateTime.Now;
+        livestock.UpdatedBy = requestedBy ?? "SYS";
+
         //Update BatchImport
         batchImportDetail.BatchImport.Status = batch_import_status.ĐANG_NHẬP;
         batchImportDetail.BatchImport.UpdatedAt = DateTime.Now;
+
+        var countDead = await _context.BatchImportDetails
+            .Include(l => l.Livestock)
+            .Where(x => x.BatchImportId == batchImportDetail.BatchImportId
+            && x.Livestock.Status == livestock_status.CHẾT
+            && x.Status == batch_import_status.ĐÃ_HỦY)
+            .CountAsync();
 
         var countImported = await _context.BatchImportDetails
             .Where(x => x.BatchImportId == batchImportDetail.BatchImportId
@@ -1078,12 +1104,13 @@ public class ImportService : IImportRepository
                 && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
             .CountAsync();
 
-        //STATUS CHANGE WARNING: Update status when imported all  
-        if (countImported + 1 == totalLivestockInBatch)
+        //STATUS CHANGE WARNING: Update status when imported all
+        if (countImported + 1 == totalLivestockInBatch + countDead)
         {
             batchImportDetail.BatchImport.Status = batch_import_status.HOÀN_THÀNH;
             batchImportDetail.BatchImport.CompletionDate = DateTime.Now;
             batchImportDetail.BatchImport.UpdatedAt = DateTime.Now;
+            batchImportDetail.BatchImport.UpdatedBy = requestedBy ?? "SYS"; 
         }
 
         await _context.SaveChangesAsync();
@@ -1137,6 +1164,7 @@ public class ImportService : IImportRepository
         };
         return result;
     }
+
     public async Task<LivestockBatchImportScanInfo> ConfrimReplaceDeadLiveStock(string batchImportId, AddImportLivestockDTO livestockAddModel)
     {
         //Check BatchImport
@@ -1171,7 +1199,7 @@ public class ImportService : IImportRepository
                         .FirstOrDefaultAsync(x => x.Id == livestockAddModel.Id);
         if (livestock == null)
             throw new Exception("ID trên mã thẻ tai không tồn tại trong hệ thống.");
-
+            
         var specie = await _context.Species.FirstOrDefaultAsync(x => x.Id == livestockAddModel.SpecieId);
         if (specie == null)
             throw new Exception("Không tìm thấy loài vật");
@@ -1196,15 +1224,20 @@ public class ImportService : IImportRepository
             && x.ImportedDate != null)
             .CountAsync();
 
+        //Delete pin if import start
+        var pinnedBatchImport = await _context.PinnedBatchImports
+            .FirstOrDefaultAsync(x => x.BatchImportId == batchImportId);
+        if (pinnedBatchImport != null)
+            _context.PinnedBatchImports.Remove(pinnedBatchImport);
 
         //Add livestock info
         livestock.Id = livestockAddModel.Id;
         livestock.InspectionCode = livestockAddModel.InspectionCode;
         livestock.SpeciesId = specie.Id;
-        livestock.Status = livestockAddModel.LivestockStatus ?? livestock_status.KHỎE_MẠNH;
+        livestock.Status = livestock_status.KHỎE_MẠNH;
         livestock.Gender = livestockAddModel.Gender ?? livestock_gender.ĐỰC;
         livestock.Color = livestockAddModel.Color ?? "Nâu";
-        livestock.WeightOrigin = livestockAddModel.Weight ?? 100;
+        livestock.WeightOrigin = livestockAddModel.Weight ?? null;
         livestock.Dob = livestockAddModel.Dob ?? null;
         livestock.UpdatedAt = DateTime.Now;
         livestock.UpdatedBy = livestockAddModel.RequestedBy ?? "SYS";
@@ -1241,8 +1274,15 @@ public class ImportService : IImportRepository
             _context.SearchHistories.RemoveRange(toRemove);
         }
 
+        var countDead = await _context.BatchImportDetails
+                .Include(l => l.Livestock)
+                .Where(x => x.BatchImportId == batchImportId
+                && x.Livestock.Status == livestock_status.CHẾT
+                && x.Status == batch_import_status.ĐÃ_HỦY)
+                .CountAsync();
+
         //STATUS CHANGE WARNING: If last livestock is confirm
-        if (countImported + 1 == totalLivestockInBatch)
+        if (countImported + 1 == totalLivestockInBatch + countDead)
         {
             batchImport.Status = batch_import_status.HOÀN_THÀNH;
             batchImport.CompletionDate = DateTime.Now;
@@ -1294,6 +1334,12 @@ public class ImportService : IImportRepository
         if (batchImportDetail.ImportedDate != null)
             throw new Exception("Loài vật đã được nhập");
 
+        //Delete pin if import start
+        var pinnedBatchImport = await _context.PinnedBatchImports
+            .FirstOrDefaultAsync(x => x.BatchImportId == batchImportDetail.BatchImportId);
+        if (pinnedBatchImport != null)
+            _context.PinnedBatchImports.Remove(pinnedBatchImport);
+
         //Update livestock
         livestock.Status = livestock_status.XUẤT_BÁN_THỊT;
         livestock.UpdatedAt = DateTime.Now;
@@ -1321,7 +1367,14 @@ public class ImportService : IImportRepository
                  && (x.Livestock.Status != livestock_status.CHẾT || x.ImportedDate != null))
                 .CountAsync();
 
-        if (countImported + 1 == totalLivestockInBatch)
+        var countDead = await _context.BatchImportDetails
+                .Include(l => l.Livestock)
+                .Where(x => x.BatchImportId == batchImportDetail.BatchImportId
+                && x.Livestock.Status == livestock_status.CHẾT
+                && x.Status == batch_import_status.ĐÃ_HỦY)
+                .CountAsync();
+
+        if (countImported + 1 == totalLivestockInBatch + countDead)
         {
             batchImportDetail.BatchImport.Status = batch_import_status.HOÀN_THÀNH;
             batchImportDetail.BatchImport.CompletionDate = DateTime.Now;
@@ -1371,8 +1424,6 @@ public class ImportService : IImportRepository
         // Bước 2: Lấy dữ liệu phân trang và map sang DTO trong 1 truy vấn duy nhất
         var pagedItems = await query
             .OrderByDescending(v => v.CreatedAt)
-            .Skip(filter?.Skip ?? 0)
-            .Take(filter?.Take ?? 10)
             .Select(v => new ImportSum
             {
                 Id = v.Id,

@@ -74,13 +74,6 @@ interface Role {
   concurrencyStamp: string;
 }
 
-interface PermissionData {
-  roleId: string;
-  roleName: string;
-  permissions: string[];
-  vietnamesePermissions: Record<string, string>;
-}
-
 interface PermissionGroup {
   name: string;
   permissions: {

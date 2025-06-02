@@ -62,11 +62,11 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Không tìm thấy thông tin vật nuôi");
 
             //Check Livestock in our barn or not
-            var checkLivestockHasImported = await _context.BatchImportDetails
-                .FirstOrDefaultAsync(x => x.LivestockId == model.LivestockId
-                && x.ImportedDate != null);
-            if (checkLivestockHasImported == null)
-                throw new Exception("Loài vật chưa được nhập về trại không thể thêm");
+            //var checkLivestockHasImported = await _context.BatchImportDetails
+            //    .FirstOrDefaultAsync(x => x.LivestockId == model.LivestockId
+            //    && x.ImportedDate != null);
+            //if (checkLivestockHasImported == null)
+            //    throw new Exception("Loài vật chưa được nhập về trại không thể thêm");
 
             //Check duplicated livestock
             var oderDetailsCheck = await _context.OrderDetails
@@ -168,7 +168,6 @@ namespace DataAccess.Repository.Services
             {
                 order.Status = order_status.CHỜ_BÀN_GIAO;
                 order.AwaitDeliverAt = DateTime.Now;
-                order.Type = order_type.YÊU_CẦU_XUẤT;
                 order.UpdatedAt = DateTime.Now;
                 order.UpdatedBy = model.RequestedBy ?? "SYS";
             }
@@ -229,11 +228,13 @@ namespace DataAccess.Repository.Services
                 throw new Exception("Chưa đủ số lượng vật nuôi, không thể hoàn thành");
 
             var livestockInOrder = await _context.OrderDetails
+                .Include(l => l.Livestock)
                 .Where(x => x.OrderId == orderId
                 && x.ExportedDate == null)
                 .ToArrayAsync();
             foreach (var item in livestockInOrder)
             {
+                item.Livestock.Status = livestock_status.ĐÃ_XUẤT;
                 item.ExportedDate = DateTime.Now;
                 item.UpdatedAt = DateTime.Now;
                 item.UpdatedBy = requestedBy ?? "SYS";
@@ -268,6 +269,7 @@ namespace DataAccess.Repository.Services
 
             //Check Order have at least 1 Exportable Livestock
             var orderDetails = await _context.OrderDetails
+                    .Include(l => l.Livestock)
                 .Where(x => x.OrderId == orderId
                 && x.ExportedDate == null)
                 .ToArrayAsync();
@@ -277,6 +279,12 @@ namespace DataAccess.Repository.Services
             //Update ExportedDate for each Livestock
             foreach (var item in orderDetails)
             {
+                //Update livestock
+                item.Livestock.Status = livestock_status.ĐÃ_XUẤT;
+                item.Livestock.UpdatedAt = DateTime.Now;
+                item.Livestock.UpdatedBy = requestedBy ?? "SYS";
+
+                //Update orderDetails
                 item.ExportedDate = DateTime.Now;
                 item.UpdatedAt = DateTime.Now;
                 item.UpdatedBy = requestedBy ?? "SYS";
@@ -288,6 +296,8 @@ namespace DataAccess.Repository.Services
             order.UpdatedAt = DateTime.Now;
             order.UpdatedBy = requestedBy ?? "SYS";
 
+            await _context.SaveChangesAsync();
+
             //Check Total Exported 
             var livestockQuantity = await _context.OrderRequirements
                .Where(o => o.OrderId == orderId)
@@ -296,7 +306,7 @@ namespace DataAccess.Repository.Services
                 .Where(x => x.OrderId == orderId
                 && x.ExportedDate != null)
                 .CountAsync();
-            if (listOrderDetails + 1 == livestockQuantity)
+            if (listOrderDetails == livestockQuantity)
             {
                 order.Status = order_status.HOÀN_THÀNH;
                 order.CompletedAt = DateTime.Now;
@@ -313,16 +323,24 @@ namespace DataAccess.Repository.Services
         public async Task<string> GetReportedFile(string orderId)
         {
             var order = await _context.Orders
-    .Include(c => c.Customer)
-    .FirstOrDefaultAsync(x => x.Id == orderId) ??
-   throw new Exception("Không tìm thấy gói thầu");
+                .Include(c => c.Customer)
+                .FirstOrDefaultAsync(x => x.Id == orderId) ??
+             throw new Exception("Không tìm thấy gói thầu");
 
             var orderRequirement = await _context.OrderRequirements
                     .Include(s => s.Species)
                 .Where(x => x.OrderId == orderId)
-                .FirstOrDefaultAsync();
+                .ToArrayAsync();
             if (orderRequirement == null)
                 throw new Exception("Không tìm thấy yêu cầu theo đơn này");
+
+            var oderDetails = await _context.OrderDetails
+                .Include(l => l.Livestock)
+                    .ThenInclude(s => s.Species)
+                .Where(x => x.OrderId == orderId)
+                .ToArrayAsync();
+            if (oderDetails == null || !oderDetails.Any())
+                throw new Exception("Không tìm thấy thông tin vật nuôi trong đơn này");
 
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
             using var package = new ExcelPackage(new MemoryStream());
@@ -342,20 +360,57 @@ namespace DataAccess.Repository.Services
             var boldSegmentRow3 = richTextRow3.Add("BẢNG KÊ XUẤT HÀNG");
             boldSegmentRow3.Bold = true;
             boldSegmentRow3.Size = 16;
-            var boldSegmentRow4 = richTextRow4.Add("Loại vật nuôi: ");
-            //boldSegmentRow4.Bold = true;
-            //richTextRow4.Add($"{orderRequirement.Species.Name]}");
+            var boldSegmentRow4 = richTextRow4.Add("Tên khách hàng: ");
+            boldSegmentRow4.Bold = true;
+            richTextRow4.Add($"{order.Customer.Fullname}");
 
-            //worksheet.Cells["A5"].Value = $"DANH SÁCH LỰA CHỌN NGHIỆM THU ĐÁNH GIÁ CHẤT LƯỢNG ";
-            //worksheet.Cells["A5"].Style.Font.Bold = true;
+            var columns = new string[] { "STT", "Loài vật nuôi", "MTT", "Trọng lượng nhập", "Trọng lượng xuất", "Ngày nhập", "Ngày xuất", "Thời gian nuôi" };
+            var data = new DataTable();
 
-            //var columns = new string[] { "Tên", "Địa chỉ", "Số điện thoại", "Ghi chú", "Số lượng" };
-            //var data = new DataTable();
-            //data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
+            ////InsertData
+            data.Columns.AddRange(columns.Select(o => new DataColumn(o)).ToArray());
 
-            //worksheet.Cells["A6"].LoadFromDataTable(data, true, TableStyles.Light1);
-            //worksheet.Column(3).Style.Numberformat.Format = "@";
-            //worksheet.Column(5).Style.Numberformat.Format = "@";
+            int stt = 1;
+            foreach (var item in oderDetails)
+            {
+                var livestock = item.Livestock;
+                var batchImportDetail = await _context.BatchImportDetails
+                    .Where(x => x.LivestockId == livestock.Id && x.ImportedDate != null)
+                    .OrderBy(x => x.ImportedDate)
+                    .FirstOrDefaultAsync();
+
+                var importedDate = batchImportDetail?.ImportedDate;
+                var exportedDate = item.ExportedDate;
+                int? days = null;
+                if (importedDate.HasValue && exportedDate.HasValue)
+                    days = (exportedDate.Value.Date - importedDate.Value.Date).Days;
+
+                data.Rows.Add(
+                    stt++,
+                    livestock.Species?.Name ?? "",
+                    livestock.InspectionCode ?? "",
+                    livestock.WeightOrigin?.ToString("0.##") ?? "",
+                    livestock.WeightExport?.ToString("0.##") ?? livestock.WeightOrigin.ToString(),
+                    importedDate?.ToString("dd/MM/yyyy") ?? "",
+                    exportedDate?.ToString("dd/MM/yyyy") ?? "",
+                    days?.ToString() ?? ""
+                );
+            }
+
+            // Load data into worksheet
+            worksheet.Cells["A6"].LoadFromDataTable(data, true, TableStyles.Light1);
+
+            // Optional: Format columns (e.g., for text, numbers, dates)
+            worksheet.Column(3).Style.Numberformat.Format = "@"; // MTT as text
+            worksheet.Column(4).Style.Numberformat.Format = "#,##0.##"; // Trọng lượng nhập
+            worksheet.Column(5).Style.Numberformat.Format = "#,##0.##"; // Trọng lượng xuất
+            worksheet.Column(6).Style.Numberformat.Format = "dd/MM/yyyy"; // Ngày nhập
+            worksheet.Column(7).Style.Numberformat.Format = "dd/MM/yyyy"; // Ngày xuất
+            worksheet.Column(8).Style.Numberformat.Format = "0"; // Thời gian nuôi
+
+            // Optionally, auto-fit columns
+            worksheet.Cells[worksheet.Dimension.Address].AutoFitColumns();
+            //Finish Insert
 
             using var stream = new MemoryStream();
             await package.SaveAsAsync(stream);
@@ -532,6 +587,12 @@ namespace DataAccess.Repository.Services
                         if (livestockCheck == null)
                             throw new Exception($"Không tìm thấy vật nuôi với mã kiểm dịch '{inspectionCode}' và loài '{species}' trong hệ thống.");
 
+                        // Check duplicate livestock in order
+                        var existingLivestock = await _context.OrderDetails
+                            .FirstOrDefaultAsync(x => x.LivestockId == livestockCheck.Id && x.OrderId == orderId);
+                        if (existingLivestock != null)
+                            throw new Exception($"Vật nuôi với mã kiểm dịch '{inspectionCode}' đã tồn tại trong đơn bán này.");
+                        
                         listLivestocks.Add(new OrderDetail
                         {
                             Id = SlugId.New(),
@@ -575,6 +636,12 @@ namespace DataAccess.Repository.Services
             if (order.Status == order_status.ĐÃ_HỦY || order.Status == order_status.HOÀN_THÀNH)
                 throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể chọn loài vật");
 
+            if (order.Type == order_type.YÊU_CẦU_CHỌN)
+                throw new Exception("Đơn đang yêu cầu chọn không thể yêu cầu tiếp");
+
+            if (order.Type == order_type.YÊU_CẦU_XUẤT)
+                throw new Exception("Đơn đang yêu cầu xuất không thể yêu cầu tiếp");
+
             var livestockQuantity = await _context.OrderRequirements
               .Where(o => o.OrderId == orderId)
               .SumAsync(x => (int?)x.Quantity);
@@ -598,6 +665,9 @@ namespace DataAccess.Repository.Services
 
             if (order.Status == order_status.ĐÃ_HỦY || order.Status == order_status.HOÀN_THÀNH)
                 throw new Exception("Đơn đã hoàn thành hoặc bị hủy, không thể xuất bán");
+
+            if (order.Type == order_type.YÊU_CẦU_XUẤT)
+                throw new Exception("Đơn đang yêu cầu xuất không thể yêu cầu tiếp");
 
             var orderDetails = await _context.OrderDetails
                 .Where(x => x.OrderId == orderId)
@@ -691,8 +761,6 @@ namespace DataAccess.Repository.Services
                     ExportedDate = v.ExportedDate
                 })
                 .OrderByDescending(v => v.CreatedAt)
-                .Skip(filter?.Skip ?? 0)
-                .Take(filter?.Take ?? 10)
                 .ToArray();
             result.Total = orderDetails.Length;
             return result;
@@ -973,8 +1041,6 @@ namespace DataAccess.Repository.Services
 
             var orders = await query
                 .OrderByDescending(v => v.CreatedAt)
-                .Skip(filter?.Skip ?? 0)
-                .Take(filter?.Take ?? 10)
                 .Select(v => new OrderSummary
                 {
                     Id = v.Id,
@@ -1131,6 +1197,8 @@ namespace DataAccess.Repository.Services
                             OrderRequirementId = orderRequirement.Id,
                             DiseaseId = insurance.DiseaseId,
                             InsuranceDuration = insurance.InsuranceDuration ?? 21,
+                            CreatedBy = updateOrder.RequestedBy ?? "SYS",
+                            CreatedAt = DateTime.Now,
                             UpdatedAt = DateTime.Now,
                             UpdatedBy = updateOrder.RequestedBy ?? "SYS"
                         };

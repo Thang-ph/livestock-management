@@ -685,10 +685,7 @@ namespace LivestockManagementSystemAPI.Controllers
         }
 
         [HttpPost("add-to-pinned-importbatch/{batchImportId}")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<PinnedBatchImport>> AddToPinnedImportBatch([FromRoute] string batchImportId, string requestedBy)
+        public async Task<ActionResult<bool>> AddToPinnedImportBatch([FromRoute] string batchImportId, [FromQuery] string? requestedBy)
         {
             try
             {

@@ -10,7 +10,7 @@ export default function ChiTietTiemChungGoiThauPage() {
         className="relative flex-1 space-y-4 overflow-y-auto  px-4"
         breadcrumbs={[
           { title: 'Trang chủ', link: '/' },
-          { title: 'Quản lý lô tiêm', link: '/quan-ly-to-tiem' },
+          { title: 'Quản lý lô tiêm', link: '/quan-ly-lo-tiem' },
           { title: 'Chi tiết tiêm chủng gói thầu', link: '/user' }
         ]}
       >

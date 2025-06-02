@@ -1,7 +1,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import __helpers from '@/helpers';
 import { useSearchParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+
 import { CellAction } from './cell-action';
 
 export const columns: ColumnDef<any>[] = [
@@ -47,16 +47,6 @@ export const columns: ColumnDef<any>[] = [
     cell: ({ row }) => {
       const date = new Date(row.original.importedDate);
       return __helpers.convertToDate(date);
-    }
-  },
-
-  {
-    accessorKey: 'weightImport',
-    header: 'Trọng lượng nhập',
-    enableSorting: true,
-    cell: ({ row }) => {
-      const weight = row.original.weightImport;
-      return weight ? `${weight} kg` : 'Chưa nhập';
     }
   },
 

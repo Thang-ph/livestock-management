@@ -34,6 +34,7 @@ namespace DataAccess.Repository.Services
             return result;
         }
 
+
         public async Task<SpecieDTO?> GetByIdAsync(string id)
         {
             if (string.IsNullOrEmpty(id)) throw new Exception("Không có loài vật này trong hệ thống");

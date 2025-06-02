@@ -333,8 +333,6 @@ namespace DataAccess.Repository.Services
                 }
                 codeRangesMap = codeRangesMap
                     .OrderBy(o => o.OrderNumber)
-                    .Skip(filter.Skip)
-                    .Take(filter.Take)
                     .ToList();
             }
 

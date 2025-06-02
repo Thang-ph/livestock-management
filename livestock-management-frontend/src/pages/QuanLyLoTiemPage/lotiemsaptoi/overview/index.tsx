@@ -3,18 +3,15 @@
 import ListData from '../../listlotiemsaptoi';
 import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';
 import { useSearchParams } from 'react-router-dom';
-import {
-  useGetBatchVaccinList,
-  useGetListLoTiemSapToi
-} from '@/queries/admin.query';
+import { useGetListLoTiemSapToi } from '@/queries/admin.query';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { Eye } from 'lucide-react';
 import { useRouter } from '@/routes/hooks';
 
 export function LoTiemSapToiTab() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [viewAll, setViewAll] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [viewAll] = useState(false);
 
   // Default page limit from URL or 10
   const defaultPageLimit = Number(searchParams.get('limit') || 10);
@@ -27,16 +24,6 @@ export function LoTiemSapToiTab() {
   const totalRecords = data?.length || 0;
   const pageCount = Math.ceil(totalRecords / pageLimit);
   const router = useRouter();
-  const handleViewAllToggle = () => {
-    setViewAll(!viewAll);
-    // Update URL params when toggling view
-    if (!viewAll) {
-      searchParams.set('limit', '1000');
-    } else {
-      searchParams.set('limit', defaultPageLimit.toString());
-    }
-    setSearchParams(searchParams);
-  };
 
   return (
     <>

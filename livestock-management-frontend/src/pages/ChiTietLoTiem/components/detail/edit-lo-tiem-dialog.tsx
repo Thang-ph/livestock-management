@@ -29,13 +29,12 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import {
-  useGetListLoaiTiem,
-  useGetLoaiDichBenh,
-  useGetThuoc
-} from '@/queries/vacxin.query';
+import { useGetListLoaiTiem, useGetLoaiDichBenh } from '@/queries/vacxin.query';
 import __helpers from '@/helpers';
-import { useGetNguoiThucHien } from '@/queries/admin.query';
+import {
+  useGetNguoiThucHien,
+  useGetThuocTheoLoaiBenh
+} from '@/queries/admin.query';
 
 interface LoTiemData {
   id: string;
@@ -67,9 +66,9 @@ export function EditLoTiemDialog({
   // Fetch data for dropdowns
   const { data: loaiTiem } = useGetListLoaiTiem();
   const { data: loaiDichBenh } = useGetLoaiDichBenh();
-  const { data: loaiThuoc } = useGetThuoc();
   const { mutateAsync: getNguoiThucHienByDate } = useGetNguoiThucHien();
-
+  const [loaiBenh, setLoaiBenh] = useState('');
+  const { data: dataLoaiThuoc } = useGetThuocTheoLoaiBenh(loaiBenh);
   const [formData, setFormData] = useState({
     name: loTiemData.name,
     dateSchedule: new Date(loTiemData.dateSchedule),
@@ -143,7 +142,8 @@ export function EditLoTiemDialog({
 
       toast({
         title: 'Thành công',
-        description: 'Đã cập nhật thông tin lô tiêm thành công.'
+        description: 'Đã cập nhật thông tin lô tiêm thành công.',
+        variant: 'success'
       });
 
       setIsOpen(false);
@@ -174,7 +174,7 @@ export function EditLoTiemDialog({
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Chỉnh sửa thông tin lô tiêm</DialogTitle>
           </DialogHeader>
@@ -223,7 +223,10 @@ export function EditLoTiemDialog({
               </Label>
               <Select
                 value={formData.diseaseId}
-                onValueChange={(value) => handleInputChange('diseaseId', value)}
+                onValueChange={(value) => {
+                  handleInputChange('diseaseId', value);
+                  setLoaiBenh(value);
+                }}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Chọn loại dịch bệnh" />
@@ -240,7 +243,8 @@ export function EditLoTiemDialog({
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="vaccineId" className="text-right">
-                Loại thuốc
+                Loại thuốc{' '}
+                <p className="text-red-500">(* chọn loại dịch bệnh trước)</p>
               </Label>
               <Select
                 value={formData.vaccineId}
@@ -250,7 +254,7 @@ export function EditLoTiemDialog({
                   <SelectValue placeholder="Chọn loại thuốc" />
                 </SelectTrigger>
                 <SelectContent>
-                  {loaiThuoc?.map((med) => (
+                  {dataLoaiThuoc?.map((med) => (
                     <SelectItem key={med.id} value={med.id}>
                       {med.name}
                     </SelectItem>

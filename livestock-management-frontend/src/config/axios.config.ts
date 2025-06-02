@@ -3,8 +3,8 @@ import helpers from '../helpers';
 
 const baseURL =
   process.env.NODE_ENV === 'production'
-    ? 'http://ec2-13-213-45-135.ap-southeast-1.compute.amazonaws.com:5000/'
-    : 'https://localhost:7085/';
+    ? 'https://lms.autopass.blog/'
+    : 'https://lms.autopass.blog/';
 
 const onRequestSuccess = (config: any) => {
   config.headers['Authorization'] = `Bearer ${helpers.cookie_get('AT')}`;
@@ -105,7 +105,7 @@ var BaseRequestV2 = {
     }
   },
 
-  Put: async <T = any>(url: string, data: any) => {
+  Put: async <T = any>(url: string, data?: any) => {
     try {
       const res: AxiosResponse<T> = await axios.put(url, data);
       return [null, res];

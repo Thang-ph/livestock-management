@@ -73,28 +73,41 @@ namespace DataAccess.Repository.Services
             return batchExport;
         }
 
-        public async Task<BatchExportDetail> AddLivestockToBatchExportDetail( BatchExportDetailAddDTO batchExportDetailAddDTO)
+        public async Task<bool> AddLivestockToBatchExportDetail( BatchExportDetailAddDTO batchExportDetailAddDTO)
         {
             var batchExport = await _context.BatchExports
-     .AsNoTracking()
+  
      .FirstOrDefaultAsync(x => x.Id == batchExportDetailAddDTO.BatchExportId);
-
+            
             if (batchExport == null)
             {
                 throw new Exception("Không tìm thấy lô xuất");
             }
-            Livestock livestock = await _context.Livestocks.AsNoTracking()
+            Livestock livestock = await _context.Livestocks
            .FirstOrDefaultAsync(o => o.Id == batchExportDetailAddDTO.LivestockId
                && o.Status != livestock_status.CHẾT
-               && o.Status!= livestock_status.CHỜ_XUẤT
+                && o.Status != livestock_status.XUẤT_BÁN_THỊT
                && o.Status != livestock_status.ĐÃ_XUẤT) ??
            throw new Exception("Không tìm thấy vật nuôi hoặc vật nuôi đã chết chờ xuất hoặc đã xuất");
-
-            List<BatchExportDetail> existLivestock = _context.BatchExportDetails.Where(x => x.LivestockId == batchExportDetailAddDTO.LivestockId).ToList();
-            if (existLivestock.Any())
-            {
-                throw new Exception("Vật nuôi đã thuộc 1 lô xuất khác");
-            }
+            //ProcurementDetail procurementDetail = _context.ProcurementDetails.FirstOrDefault(x => x.ProcurementPackageId == batchExport.ProcurementPackageId && x.SpeciesId == livestock.SpeciesId);
+            //int ageInDays = (int)(DateTime.Now.Date - livestock.Dob!.Value.Date).TotalDays;
+            //decimal? weight = livestock.WeightEstimate ?? livestock.WeightOrigin;
+            //if (ageInDays < procurementDetail.RequiredAgeMin)
+            //{
+            //    throw new Exception($"Tuổi vật nuôi ({ageInDays} ngày) nhỏ hơn tuổi tối thiểu yêu cầu ({procurementDetail.RequiredAgeMin} ngày).");
+            //}
+            //if (ageInDays > procurementDetail.RequiredAgeMax)
+            //{
+            //    throw new Exception($"Tuổi vật nuôi ({ageInDays} ngày) lớn hơn tuổi tối đa cho phép ({procurementDetail.RequiredAgeMax} ngày).");
+            //}
+            //if (weight < procurementDetail.RequiredWeightMin)
+            //{
+            //    throw new Exception($"Khối lượng vật nuôi ({weight} kg) nhỏ hơn khối lượng tối thiểu yêu cầu ({procurementDetail.RequiredWeightMin} kg).");
+            //}
+            //if (weight > procurementDetail.RequiredWeightMax)
+            //{
+            //    throw new Exception($"Khối lượng vật nuôi ({weight} kg) vượt quá khối lượng tối đa cho phép ({procurementDetail.RequiredWeightMax} kg).");
+            //}
 
             IdentityUser user = _context.Users.FirstOrDefault(x => x.Id == batchExportDetailAddDTO.CreatedBy);
             if (user == null)
@@ -104,6 +117,9 @@ namespace DataAccess.Repository.Services
             if (batchExport.Remaining == 0) {
                 throw new Exception("Người này đã nhận tối đa số vật nuôi");
             }
+            livestock.Status = livestock_status.CHỜ_XUẤT;
+            _context.Livestocks.Update(livestock);
+            await _context.SaveChangesAsync();
             BatchExportDetail batchExportDetail = new BatchExportDetail();
             batchExportDetail.Id = SlugId.New();
             batchExportDetail.LivestockId = batchExportDetailAddDTO.LivestockId;
@@ -118,8 +134,17 @@ namespace DataAccess.Repository.Services
             batchExport.Remaining--;
             if (batchExport.Remaining == 0)
             {
-                batchExport.Status = batch_export_status.ĐÃ_BÀN_GIAO;
+                batchExport.Status = batch_export_status.CHỜ_BÀN_GIAO;
             }
+            List<BatchExportDetail> batchExportDetails = _context.BatchExportDetails.Where(x => x.BatchExport.Id == batchExport.Id).ToList();
+            //foreach (BatchExportDetail batch in batchExportDetails)
+            //{
+            //    batch.Status = batch_export_status.ĐÃ_BÀN_GIAO;
+            //}
+            ProcurementPackage procurementPackage = _context.ProcurementPackages.FirstOrDefault(x => x.Id == batchExport.ProcurementPackageId);
+            procurementPackage.Status = procurement_status.CHỜ_BÀN_GIAO;
+            _context.ProcurementPackages.Update(procurementPackage);
+            _context.SaveChanges(); 
             batchExport.UpdatedBy= batchExportDetailAddDTO.CreatedBy;
             batchExport.UpdatedAt=DateTime.Now;
             _context.BatchExports.Update(batchExport);
@@ -127,7 +152,7 @@ namespace DataAccess.Repository.Services
             await  _context.BatchExportDetails.AddAsync(batchExportDetail);
             await _context.SaveChangesAsync();
             batchExportDetail.BatchExport = null;
-            return batchExportDetail;
+            return true;
         }
 
         public async Task<bool> CanAddCustomerInBatchExport(string procurementId)
@@ -321,8 +346,6 @@ namespace DataAccess.Repository.Services
                     CreatedAt = v.CreatedAt
                 })
                 .OrderByDescending(v => v.CreatedAt)
-                .Skip(filter?.Skip ?? 0)
-                .Take(filter?.Take ?? 10)
                 .ToArray();
             result.Total = customersList.Length;
 
@@ -456,19 +479,166 @@ namespace DataAccess.Repository.Services
             return true;
         }
 
-        public async Task<bool> ConfirmHandoverBatchExportDetail(string batchExportDetailId, string UpdatedBy)
+       
+        public async Task<bool> ConfirmHandoverBatchExportDetail(string livestockId, string UpdatedBy)
         {
-            BatchExportDetail batchExportDetail = _context.BatchExportDetails.FirstOrDefault(x => x.Id == batchExportDetailId);
+            BatchExportDetail batchExportDetail = _context.BatchExportDetails.Include(x => x.Livestock).FirstOrDefault(x => x.LivestockId == livestockId);
             if (batchExportDetail == null)
             {
                 throw new Exception("Không tim thấy batch export detail");
             }
+            List<BatchExportDetail> batchExportDetails = _context.BatchExportDetails.Where(x => x.BatchExportId == batchExportDetail.BatchExportId).ToList();
+
+            Livestock livestock = batchExportDetail.Livestock;
+            livestock.Status = livestock_status.ĐÃ_XUẤT;
+            _context.Livestocks.Update(livestock);
+            _context.SaveChanges();
             batchExportDetail.HandoverDate = DateTime.Now;
-            batchExportDetail.Status=batch_export_status.ĐÃ_BÀN_GIAO;
-            batchExportDetail.UpdatedBy= UpdatedBy;
+            batchExportDetail.Status = batch_export_status.ĐÃ_BÀN_GIAO;
+            batchExportDetail.UpdatedBy = UpdatedBy;
             batchExportDetail.UpdatedAt = DateTime.Now;
             _context.Update(batchExportDetail);
-            await _context.SaveChangesAsync();  
+            await _context.SaveChangesAsync();
+            if (batchExportDetails.All(x => x.Status == batch_export_status.ĐÃ_BÀN_GIAO))
+            {
+                BatchExport batchExport = _context.BatchExports.FirstOrDefault(x => x.Id == batchExportDetail.BatchExportId);
+                batchExport.Status = batch_export_status.ĐÃ_BÀN_GIAO;
+                List<BatchExport> listBatchExports = _context.BatchExports.Where(x => x.ProcurementPackageId == batchExport.ProcurementPackageId).ToList();
+                if (listBatchExports.All(x => x.Status == batch_export_status.ĐÃ_BÀN_GIAO))
+                {
+                    ProcurementPackage procurementPackage = _context.ProcurementPackages.FirstOrDefault(x => x.Id == batchExport.ProcurementPackageId);
+                    procurementPackage.Status = procurement_status.HOÀN_THÀNH;
+                    _context.Update(procurementPackage);
+                    _context.SaveChanges();
+                }
+                    _context.Update(batchExport);
+                _context.SaveChanges();
+            }
+            return true;
+        }
+
+        public async Task<bool> AddLivestockToBatchExportDetailByInspectionCode(BatchExportDetailAddDTOByInspectionCode batchExportDetailAddDTO)
+        {
+            var batchExport = await _context.BatchExports
+
+   .FirstOrDefaultAsync(x => x.Id == batchExportDetailAddDTO.BatchExportId);
+
+            if (batchExport == null)
+            {
+                throw new Exception("Không tìm thấy lô xuất");
+            }
+            Livestock livestock = await _context.Livestocks
+           .FirstOrDefaultAsync(o => o.InspectionCode == batchExportDetailAddDTO.InspectionCode&&o.Species.Type==batchExportDetailAddDTO.Specie_Type
+               && o.Status != livestock_status.CHẾT
+               && o.Status != livestock_status.ĐÃ_XUẤT
+                && o.Status != livestock_status.XUẤT_BÁN_THỊT
+               ) ??
+           throw new Exception("Không tìm thấy vật nuôi hoặc vật nuôi đã chết chờ xuất hoặc đã xuất");
+
+            List<BatchExportDetail> existLivestock = _context.BatchExportDetails.Where(x => x.LivestockId == livestock.Id).ToList();
+            if (existLivestock.Any())
+            {
+                throw new Exception("Vật nuôi đã thuộc 1 lô xuất khác");
+            }
+            //ProcurementDetail procurementDetail = _context.ProcurementDetails.FirstOrDefault(x => x.ProcurementPackageId == batchExport.ProcurementPackageId && x.SpeciesId == livestock.SpeciesId);
+            //int ageInDays = (int)(DateTime.Now.Date - livestock.Dob!.Value.Date).TotalDays;
+            //decimal? weight = livestock.WeightEstimate ?? livestock.WeightOrigin;
+            //if (ageInDays < procurementDetail.RequiredAgeMin)
+            //{
+            //    throw new Exception($"Tuổi vật nuôi ({ageInDays} ngày) nhỏ hơn tuổi tối thiểu yêu cầu ({procurementDetail.RequiredAgeMin} ngày).");
+            //}
+            //if (ageInDays > procurementDetail.RequiredAgeMax)
+            //{
+            //    throw new Exception($"Tuổi vật nuôi ({ageInDays} ngày) lớn hơn tuổi tối đa cho phép ({procurementDetail.RequiredAgeMax} ngày).");
+            //}
+            //if (weight < procurementDetail.RequiredWeightMin)
+            //{
+            //    throw new Exception($"Khối lượng vật nuôi ({weight} kg) nhỏ hơn khối lượng tối thiểu yêu cầu ({procurementDetail.RequiredWeightMin} kg).");
+            //}
+            //if (weight > procurementDetail.RequiredWeightMax)
+            //{
+            //    throw new Exception($"Khối lượng vật nuôi ({weight} kg) vượt quá khối lượng tối đa cho phép ({procurementDetail.RequiredWeightMax} kg).");
+            //}
+
+            IdentityUser user = _context.Users.FirstOrDefault(x => x.Id == batchExportDetailAddDTO.CreatedBy);
+            if (user == null)
+            {
+                throw new Exception("Không tìm thấy người cập nhật");
+            }
+            if (batchExport.Remaining == 0)
+            {
+                throw new Exception("Người này đã nhận tối đa số vật nuôi");
+            }
+            livestock.Status = livestock_status.CHỜ_XUẤT;
+             _context.Livestocks.Update(livestock);
+            await _context.SaveChangesAsync();
+
+            BatchExportDetail batchExportDetail = new BatchExportDetail();
+            batchExportDetail.Id = SlugId.New();
+            batchExportDetail.LivestockId = livestock.Id;
+            batchExportDetail.BatchExportId = batchExportDetailAddDTO.BatchExportId;
+            batchExportDetail.Status = batch_export_status.CHỜ_BÀN_GIAO;
+            batchExportDetail.CreatedAt = DateTime.Now;
+            batchExportDetail.UpdatedAt = DateTime.Now;
+            batchExportDetail.CreatedBy = batchExportDetailAddDTO.CreatedBy;
+            batchExportDetail.UpdatedBy = batchExportDetailAddDTO.CreatedBy;
+            batchExportDetail.ExpiredInsuranceDate = batchExportDetailAddDTO.ExpiredInsuranceDate;
+            batchExportDetail.ExportDate = DateTime.Now;
+            batchExport.Remaining--;
+            if (batchExport.Remaining == 0)
+            {
+                batchExport.Status = batch_export_status.CHỜ_BÀN_GIAO;
+              
+            }
+            ProcurementPackage procurementPackage = _context.ProcurementPackages.FirstOrDefault(x => x.Id == batchExport.ProcurementPackageId);
+            procurementPackage.Status = procurement_status.CHỜ_BÀN_GIAO;
+            _context.ProcurementPackages.Update(procurementPackage);
+            _context.SaveChanges();
+            batchExport.UpdatedBy = batchExportDetailAddDTO.CreatedBy;
+            batchExport.UpdatedAt = DateTime.Now;
+            _context.BatchExports.Update(batchExport);
+            await _context.SaveChangesAsync();
+            await _context.BatchExportDetails.AddAsync(batchExportDetail);
+            await _context.SaveChangesAsync();
+            batchExportDetail.BatchExport = null;
+            return true;
+        }
+
+        public async Task<bool> ConfirmHandoverBatchExportDetailByInspectionCode(string inspectionCode, specie_type specieType, string updatedBy)
+        {
+            Livestock query = _context.Livestocks.Include(x=>x.Species).FirstOrDefault(x => x.InspectionCode == inspectionCode && x.Species.Type == specieType);
+            BatchExportDetail batchExportDetail = _context.BatchExportDetails.Include(x => x.Livestock).FirstOrDefault(x => x.LivestockId == query.Id);
+            if (batchExportDetail == null)
+            {
+                throw new Exception("Không tim thấy batch export detail");
+            }
+            List<BatchExportDetail> batchExportDetails = _context.BatchExportDetails.Where(x => x.BatchExportId == batchExportDetail.BatchExportId).ToList();
+
+            Livestock livestock = batchExportDetail.Livestock;
+            livestock.Status = livestock_status.ĐÃ_XUẤT;
+            _context.Livestocks.Update(livestock);
+            _context.SaveChanges();
+            batchExportDetail.HandoverDate = DateTime.Now;
+            batchExportDetail.Status = batch_export_status.ĐÃ_BÀN_GIAO;
+            batchExportDetail.UpdatedBy = updatedBy;
+            batchExportDetail.UpdatedAt = DateTime.Now;
+            _context.Update(batchExportDetail);
+            await _context.SaveChangesAsync();
+            if (batchExportDetails.All(x => x.Status == batch_export_status.ĐÃ_BÀN_GIAO))
+            {
+                BatchExport batchExport = _context.BatchExports.FirstOrDefault(x => x.Id == batchExportDetail.BatchExportId);
+                batchExport.Status = batch_export_status.ĐÃ_BÀN_GIAO;
+                List<BatchExport> listBatchExports = _context.BatchExports.Where(x => x.ProcurementPackageId == batchExport.ProcurementPackageId).ToList();
+                if (listBatchExports.All(x => x.Status == batch_export_status.ĐÃ_BÀN_GIAO))
+                {
+                    ProcurementPackage procurementPackage = _context.ProcurementPackages.FirstOrDefault(x => x.Id == batchExport.ProcurementPackageId);
+                    procurementPackage.Status = procurement_status.HOÀN_THÀNH;
+                    _context.Update(procurementPackage);
+                    _context.SaveChanges();
+                }
+                _context.Update(batchExport);
+                _context.SaveChanges();
+            }
             return true;
         }
     }

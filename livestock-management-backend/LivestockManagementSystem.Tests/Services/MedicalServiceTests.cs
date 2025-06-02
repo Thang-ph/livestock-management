@@ -251,24 +251,7 @@ namespace LivestockManagementSystem.Tests.Services
             result.Items.Should().HaveCount(2);
         }
 
-        [Fact]
-        public async Task GetListMedicineAsync_WithPagination_ShouldReturnCorrectPage()
-        {
-            // Arrange
-            var filter = new MedicinesFliter
-            {
-                Skip = 0,
-                Take = 1
-            };
 
-            // Act
-            var result = await _medicalService.GetListMedicineAsync(filter);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Total.Should().Be(2);
-            result.Items.Should().HaveCount(1);
-        }
 
         [Fact]
         public async Task GetByIdAsync_ValidId_ShouldReturnMedicine()

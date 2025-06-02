@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static BusinessObjects.Constants.LmsConstants;
+using static Microsoft.Extensions.Logging.EventSource.LoggingEventSource;
 
 namespace DataAccess.Repository.Interfaces
 {

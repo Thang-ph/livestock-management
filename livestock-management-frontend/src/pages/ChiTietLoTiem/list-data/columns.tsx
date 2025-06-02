@@ -51,14 +51,13 @@ export const columns: ColumnDef<any>[] = [
   },
 
   {
-    accessorKey: 'status',
-    header: 'Trạng thái',
-    enableSorting: true
+    accessorKey: 'injections_count',
+    header: 'Số mũi đã tiêm'
   },
 
   {
-    accessorKey: 'injections_count',
-    header: 'Số mũi đã tiêm'
+    accessorKey: 'conductedBy',
+    header: 'Người thực hiện'
   },
 
   {

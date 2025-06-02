@@ -14,6 +14,18 @@ namespace BusinessObjects.Dtos
 {
     public class BatchExportDTO
     {
+        public class BatchExportHandover
+        {
+            public string livestockId { get; set; }
+            public string UpdatedBy { get; set; }
+
+        }
+        public class BatchExportHandoverByInspection
+        {
+            public string inspectionCode { get; set; }
+            public specie_type specieType { get; set; }
+            public string UpdatedBy { get; set; }
+        }
         public string Id { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string? CustomerPhone { get; set; } 
@@ -69,4 +81,5 @@ namespace BusinessObjects.Dtos
         [Required(ErrorMessage = "Id gói thầu không được để trống")]
         public string ProcurementPackageId { get; set; }
     }
+  
 }

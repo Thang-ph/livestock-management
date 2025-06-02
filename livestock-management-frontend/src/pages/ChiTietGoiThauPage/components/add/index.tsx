@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import {
+  useAcceptProcurement,
   useChinhSuaGoiThau,
   useGetThongTinGoiThau
 } from '@/queries/admin.query';
@@ -22,6 +23,8 @@ import {
   Clock
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import __helpers from '@/helpers';
 
 export function BiddingView() {
   const { id } = useParams();
@@ -31,7 +34,7 @@ export function BiddingView() {
     refetch
   } = useGetThongTinGoiThau(String(id));
   const { mutateAsync: updateGoiThau } = useChinhSuaGoiThau();
-
+  const { mutateAsync: acceptProcurement } = useAcceptProcurement();
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     try {
@@ -150,7 +153,40 @@ export function BiddingView() {
             Chi tiết gói thầu
           </h1>
         </div>
-        <BiddingEditSimple biddingData={data} onSubmit={handleUpdateBidding} />
+        <div className="flex items-center gap-2">
+          <BiddingEditSimple
+            biddingData={data}
+            onSubmit={handleUpdateBidding}
+          />
+          {serverData.status === 'ĐANG_ĐẤU_THẦU' && (
+            <Button
+              size="sm"
+              onClick={async () => {
+                const [err] = await acceptProcurement({
+                  id: String(id),
+                  requestedBy: __helpers.getUserId()
+                });
+                if (err) {
+                  toast({
+                    title: 'Lỗi',
+                    description:
+                      err.data?.data || 'Không thể xác nhận trúng thầu',
+                    variant: 'destructive'
+                  });
+                } else {
+                  toast({
+                    title: 'Thành công',
+                    description: 'Đã xác nhận trúng thầu thành công',
+                    variant: 'success'
+                  });
+                  refetch();
+                }
+              }}
+            >
+              Xác nhận trúng thầu
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="p-0">
@@ -261,13 +297,21 @@ export function BiddingView() {
 
                 <Separator className="my-2" />
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="grid grid-cols-1 gap-1">
                     <div className="flex items-center gap-1 text-sm font-medium text-gray-500">
                       <span>Tổng lượng xuất</span>
                     </div>
                     <div className="text-base text-gray-900">
                       {data.totalExported}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1">
+                    <div className="flex items-center gap-1 text-sm font-medium text-gray-500">
+                      <span>Tổng lượng chọn</span>
+                    </div>
+                    <div className="text-base text-gray-900">
+                      {data.totalSelected}
                     </div>
                   </div>
 

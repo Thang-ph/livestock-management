@@ -20,7 +20,6 @@ export default function ChiTietLoTiemPage() {
           <TabsList>
             <TabsTrigger value="chitiet">Thông tin lô tiêm</TabsTrigger>
             <TabsTrigger value="danhsach">Danh sách vật nuôi</TabsTrigger>
-            <TabsTrigger value="thongtin">Thống kê lô tiêm</TabsTrigger>
           </TabsList>
           <TabsContent value="chitiet" className="space-y-4">
             <ChiTiet />

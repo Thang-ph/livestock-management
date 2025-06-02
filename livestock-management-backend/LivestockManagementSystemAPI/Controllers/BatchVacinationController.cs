@@ -168,7 +168,7 @@ namespace LivestockManagementSystemAPI.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> CreateVacinationBatch([FromBody] BatchVacinationCreate batchVacinationCreate)
+        public async Task<ActionResult<bool>> CreateVacinationBatch([FromBody] BatchVacinationCreate batchVacinationCreate)
         {
             try
             {
@@ -181,8 +181,8 @@ namespace LivestockManagementSystemAPI.Controllers
                     _logger.LogWarning($"[{this.GetType().Name}]/{nameof(CreateVacinationBatch)} : ModelState Errors: {errors}");
                     return GetError("ModelState not Valid");
                 }
-                var batchVacination = await _batchVacinationRepository.CreateBatchVacinationDetail(batchVacinationCreate);
-                return SaveSuccess(batchVacination);
+                var success = await _batchVacinationRepository.CreateBatchVacinationDetail(batchVacinationCreate);
+                return SaveSuccess(success);
             }
             catch (Exception ex)
             {
@@ -796,7 +796,7 @@ namespace LivestockManagementSystemAPI.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<LivestockVaccinationAdd>> AddLivestockVaccinationToVaccinationBatch([FromBody] LivestockVaccinationAddByInspectionCode livestockVaccinationAddByInspectionCode)
+        public async Task<ActionResult<bool>> AddLivestockVaccinationToVaccinationBatchByInspectionCode([FromBody] LivestockVaccinationAddByInspectionCode livestockVaccinationAddByInspectionCode)
         {
             try
             {
@@ -809,12 +809,12 @@ namespace LivestockManagementSystemAPI.Controllers
                     _logger.LogWarning($"[{this.GetType().Name}]/{nameof(Create)} : ModelState Errors: {errors}");
                     return GetError("ModelState not Valid");
                 }
-                LivestockVaccination livestockVaccination = await _batchVacinationRepository.AddLivestockVaccinationToVaccinationBatch(livestockVaccinationAddByInspectionCode);
-                return SaveSuccess(livestockVaccination);
+                var result= await _batchVacinationRepository.AddLivestockVacinationToVacinationBatchByInspectionCode(livestockVaccinationAddByInspectionCode);
+                return SaveSuccess(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"[{this.GetType().Name}]/{nameof(AddLivestockVaccinationToVaccinationBatch)} " + ex.Message);
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(AddLivestockVaccinationToVaccinationBatchByInspectionCode)} " + ex.Message);
                 return SaveError(ex.Message);
             }
         }
@@ -996,15 +996,12 @@ namespace LivestockManagementSystemAPI.Controllers
             }
         }
         [HttpGet("export-template-vaccination-batch")]
-        public async Task<IActionResult> ExportTemplateVaccinationBatch()
+        public async Task<ActionResult<string>> ExportTemplateVaccinationBatch()
         {
             try
             {
-                Stream result = await _batchVacinationRepository.ExportTemplateVaccinationBatch();
-
-                return File(result,
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            "Mẫu lô tiêm.xlsx");
+                var result = await _batchVacinationRepository.ExportTemplateVaccinationBatch();
+                return GetSuccess(result);
             }
             catch (Exception ex)
             {

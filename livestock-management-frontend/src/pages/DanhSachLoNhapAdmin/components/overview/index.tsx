@@ -1,7 +1,6 @@
 import ListData from '../../list-data';
 import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';
 import { useSearchParams } from 'react-router-dom';
-import { useGetBatchVaccinList } from '@/queries/admin.query';
 import { useGetListLoNhap } from '@/queries/lo-nhap.query';
 // import { useSearchParams } from 'react-router-dom';
 // import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';

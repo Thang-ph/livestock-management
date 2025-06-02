@@ -26,12 +26,14 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import __helpers from '@/helpers';
+import { useGetListDanhSachBenh } from '@/queries/donmuale.query';
 
 // Define form schema with validation
 const formSchema = z.object({
   name: z.string().min(2, { message: 'Tên thuốc phải có ít nhất 2 ký tự' }),
   description: z.string().min(5, { message: 'Mô tả phải có ít nhất 5 ký tự' }),
   type: z.string({ required_error: 'Vui lòng chọn loại thuốc' }),
+  disiseaId: z.string({ required_error: 'Vui lòng chọn bệnh' }),
   createdBy: z.string().min(2, { message: 'Người tạo phải có ít nhất 2 ký tự' })
 });
 
@@ -41,14 +43,17 @@ export default function AddForm() {
   const { data: loaiThuoc = [], isPending } = useGetLoaiThuocV2();
   const { mutateAsync: createThuoc } = useThemThuocV2();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { data: resListDanhSach } = useGetListDanhSachBenh();
+  const listDanhSachBenh = resListDanhSach?.items || [];
+  console.log('Danh sách bệnh:', listDanhSachBenh);
 
-  // Initialize form
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
       description: '',
       type: '',
+      disiseaId: '',
       createdBy: __helpers.getUserEmail()
     }
   });
@@ -150,6 +155,40 @@ export default function AddForm() {
                           {type.replace(/_/g, ' ')}
                         </SelectItem>
                       ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="disiseaId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Bệnh có thể điều trị</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn bệnh" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {listDanhSachBenh.map((disease) => (
+                      <SelectItem key={disease.id} value={disease.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{disease.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {disease.type.replace(/_/g, ' ')} -{' '}
+                            {disease.defaultInsuranceDuration} ngày
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />

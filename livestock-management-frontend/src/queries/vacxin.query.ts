@@ -244,3 +244,35 @@ export const useGetGoiThauChuaDamBaoYeuCauTiemChung = () => {
     }
   });
 };
+
+export const useUpdateThuoc = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: ['update-thuoc'],
+    mutationFn: async (model: any) => {
+      const res = await BaseRequestV2.Put(
+        `/api/medicine-management/update-medicine/${model.id}`,
+        model
+      );
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['get-loai-thuoc'],
+        exact: false
+      });
+    }
+  });
+};
+
+export const useDeleteThuoc = () => {
+  return useMutation({
+    mutationKey: ['delete-thuoc'],
+    mutationFn: async (id: string) => {
+      const res = await BaseRequestV2.Delete(
+        `/api/medicine-management/delete-medicine/${id}`
+      );
+      return res;
+    }
+  });
+};

@@ -117,7 +117,15 @@ export const ChiTiet = () => {
               diseaseId: data.diseaseId || ''
             }}
             capNhapLoTiem={async (updateData) => {
-              await capNhapLoTiem(updateData);
+              const [err] = await capNhapLoTiem(updateData);
+              if (err) {
+                toast({
+                  title: 'Lỗi',
+                  description: 'Có lỗi xảy ra khi cập nhật lô tiêm.',
+                  variant: 'destructive'
+                });
+                return;
+              }
               handleUpdateSuccess();
             }}
           />
@@ -125,7 +133,7 @@ export const ChiTiet = () => {
         <CardContent className="p-6">
           {renderField('Tên lô tiêm', data.name)}
           {renderField('Loại tiêm', data.vaccinationType)}
-          {renderField('Loại thuốc', data.medcicalType)}
+          {renderField('Loại thuốc', data.medicineName)}
           {renderField('Phòng bệnh', data.symptom)}
           {renderField(
             'Ngày dự kiến thực hiện',
@@ -136,35 +144,44 @@ export const ChiTiet = () => {
           {renderField('Ghi chú', data.note)}
         </CardContent>
         <CardFooter className="flex justify-end gap-4 border-t p-4">
-          <Button
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={() => setShowCancelDialog(true)}
-            disabled={
-              isSubmitting ||
-              data.status === 'ĐÃ_HỦY' ||
-              data.status === 'HOÀN_THÀNH'
-            }
-          >
-            <XCircle className="h-4 w-4" />
-            Hủy lô tiêm
-          </Button>
-          <Button
-            className="flex items-center gap-2"
-            onClick={() => setShowConfirmDialog(true)}
-            disabled={
-              isSubmitting ||
-              data.status === 'ĐÃ_HỦY' ||
-              data.status === 'HOÀN_THÀNH'
-            }
-          >
-            <CheckCircle className="h-4 w-4" />
-            Xác nhận lô tiêm
-          </Button>
+          {data.status !== 'ĐÃ_HỦY' && data.status !== 'HOÀN_THÀNH' && (
+            <>
+              {data.status !== 'ĐANG_THỰC_HIỆN' && (
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => setShowCancelDialog(true)}
+                  disabled={
+                    isSubmitting ||
+                    data.status === 'ĐÃ_HỦY' ||
+                    data.status === 'HOÀN_THÀNH'
+                  }
+                >
+                  <XCircle className="h-4 w-4" />
+                  Hủy lô tiêm
+                </Button>
+              )}
+              {data.status !== 'CHỜ_THỰC_HIỆN' && (
+                <Button
+                  className="flex items-center gap-2"
+                  onClick={() => setShowConfirmDialog(true)}
+                  disabled={
+                    isSubmitting ||
+                    data.status === 'ĐÃ_HỦY' ||
+                    data.status === 'HOÀN_THÀNH'
+                  }
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Xác nhận lô tiêm
+                </Button>
+              )}
+            </>
+          )}
         </CardFooter>
       </Card>
 
       {/* Confirmation Dialog */}
+
       <ConfirmationDialog
         isOpen={showConfirmDialog}
         onClose={() => setShowConfirmDialog(false)}

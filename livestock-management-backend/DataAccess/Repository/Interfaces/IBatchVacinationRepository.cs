@@ -12,7 +12,7 @@ namespace DataAccess.Repository.Interfaces
 {
     public interface IBatchVacinationRepository
     {
-        Task<BatchVaccination> CreateBatchVacinationDetail(BatchVacinationCreate batchVacinationCreate);
+        Task<bool> CreateBatchVacinationDetail(BatchVacinationCreate batchVacinationCreate);
         Task<BatchVaccination> UpdateBatchVacinationAsync(BatchVacinationUpdate batchVacinationUpdate, string batchVaccinationId);
         Task<ListVaccination> GetListVaccinations(ListVaccinationsFliter filter);
         Task<VaccinationGeneral> GetVaccinationGeneralInfo(string id);
@@ -22,10 +22,11 @@ namespace DataAccess.Repository.Interfaces
         Task<LivestockVaccinationInfo> GetLivestockInfo(ScanLivestockQrCode request);
         Task<bool> AddToVaccinationBatch(AddLivestockToVaccinationBatch request);
         Task<LivestockVaccination> AddLivestockVacinationToVacinationBatch(LivestockVaccinationAdd livestockVaccinationAdd);
+        Task<bool> AddLivestockVacinationToVacinationBatchByInspectionCode(LivestockVaccinationAddByInspectionCode livestockVaccinationAdd);
         Task<LivestockVaccineInfoById> GetLivestockVaccinationByID(string livestockId);
         Task<List<UserDTO>> GetStaffAndManagerUserAsync(DateTime dateSchedule);
         Task<bool> DeleteLiveStockVaccination(string id);
-        Task<Stream> ExportTemplateVaccinationBatch();
+        Task<string> ExportTemplateVaccinationBatch();
         Task<bool> ImportListLivestock(string batchImportId, string requestedBy, IFormFile file);
         Task<List<ListRequireVaccinationProcurement>> GetListProcurementRequireVaccination(string? procurementSearch, OrderBy? orderBy,DateTime? fromDate,DateTime? toDate);
         Task<List<ListSuggestReVaccination>> GetListSuggestReVaccination(string? search,string? medicineId, string? diseaseId, DateTime? fromDate, DateTime? toDate);

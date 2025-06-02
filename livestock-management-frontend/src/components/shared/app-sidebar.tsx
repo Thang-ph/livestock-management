@@ -26,7 +26,11 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem
 } from '@/components/ui/sidebar';
-import { ceoNavItems } from '@/constants/data';
+import {
+  assistantNavItems,
+  ceoNavItems,
+  managerNavItems
+} from '@/constants/data';
 import {
   ChevronRight,
   ChevronsUpDown,
@@ -41,11 +45,10 @@ import __helpers from '@/helpers';
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/redux/store';
 import { useGetMyInfo } from '@/queries/user.query';
-
+import LogoPNG from '@/assets/logo.jpg';
 export const company = {
-  name: 'LiveStock',
-  logo: Cow,
-  plan: 'contact@LiveStock'
+  name: 'LÚA VÀNG',
+  logo: Cow
 };
 
 export default function AppSidebar() {
@@ -60,9 +63,16 @@ export default function AppSidebar() {
     window.location.href = '/login';
   };
   const role = __helpers.getUserRole();
-  const isCEO = role.includes('Giám Đốc');
+  console.log('role', role);
 
-  const navItems = isCEO ? ceoNavItems : ceoNavItems;
+  const navItems =
+    role == 'Giám đốc'
+      ? ceoNavItems
+      : role == 'Quản trại'
+        ? managerNavItems
+        : role == 'Trợ lý'
+          ? assistantNavItems
+          : ceoNavItems;
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -81,14 +91,13 @@ export default function AppSidebar() {
     >
       <SidebarHeader className=" py-2">
         <div className="flex items-center gap-3 py-2 text-emerald-700 dark:text-emerald-400">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm dark:from-emerald-600 dark:to-teal-700">
-            <company.logo className="size-5" />
+          <div>
+            {/* <company.logo className="size-5" /> */}
+            <img src={LogoPNG} alt="LiveStock Logo" className="size-8" />
           </div>
           <div className="grid flex-1 text-left leading-tight">
             <span className="truncate text-lg font-bold">{company.name}</span>
-            <span className="truncate text-xs text-emerald-600/80 dark:text-emerald-400/80">
-              {company.plan}
-            </span>
+            <span className="truncate text-xs text-emerald-600/80 dark:text-emerald-400/80"></span>
           </div>
         </div>
       </SidebarHeader>

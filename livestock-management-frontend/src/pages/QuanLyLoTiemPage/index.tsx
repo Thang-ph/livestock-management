@@ -1,10 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { format } from 'date-fns';
-import { vi } from 'date-fns/locale';
 import {
-  CalendarIcon,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
@@ -16,7 +13,6 @@ import { OverViewTab } from './lotiemnhaclai/overview/index.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card } from '@/components/ui/card.js';
 import { Input } from '@/components/ui/input.js';
-import { Calendar } from '@/components/ui/calendar';
 import {
   Select,
   SelectContent,
@@ -24,28 +20,19 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger
-} from '@/components/ui/popover';
+
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { LoTiemSapToiTab } from './lotiemsaptoi/overview/index.js';
 import { useRouter } from '@/routes/hooks/use-router.js';
 import { useGetGoiThauChuaDamBaoYeuCauTiemChung } from '@/queries/vacxin.query.js';
 
 export default function QuanLyLoTiemPage() {
-  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
-  const [toDate, setToDate] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState('none');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAllTenders, setShowAllTenders] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
-  const router = useRouter();
   const { data: goiThauChuaDamBao } = useGetGoiThauChuaDamBaoYeuCauTiemChung();
-  console.log('goiThauChuaDamBao', goiThauChuaDamBao);
 
   const getColorForProgress = (value, total) => {
     const percentage = (value / total) * 100;
@@ -158,67 +145,6 @@ export default function QuanLyLoTiemPage() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center gap-2 sm:flex-row">
-                <div>
-                  <label className="mb-1 block text-sm">Ngày tới hạn</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          'w-[180px] justify-start text-left font-normal',
-                          !fromDate && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {fromDate
-                          ? format(fromDate, 'dd/MM/yyyy', { locale: vi })
-                          : 'Từ ngày'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={fromDate}
-                        onSelect={setFromDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <span className="hidden sm:block">—</span>
-                <div>
-                  <label className="mb-1 block text-sm">Ngày đến hạn</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          'w-[180px] justify-start text-left font-normal',
-                          !toDate && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {toDate
-                          ? format(toDate, 'dd/MM/yyyy', { locale: vi })
-                          : 'Đến ngày'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={toDate}
-                        onSelect={setToDate}
-                        initialFocus
-                        disabled={(date) =>
-                          fromDate ? date < fromDate : false
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
                 </div>
               </div>
             </div>
@@ -367,6 +293,7 @@ function TenderCard({
       </div>
 
       <p className="mb-3 sm:mb-4">Số lượng: {quantity} con</p>
+      <p className="mb-3 border-t pt-2 font-bold">Các yêu cầu tiêm chủng</p>
 
       <div className="space-y-3 sm:space-y-4">
         {metrics.map((metric, index) => (

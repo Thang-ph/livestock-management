@@ -15,13 +15,7 @@ import {
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
+
 import {
   Popover,
   PopoverContent,
@@ -30,6 +24,12 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  useDanhDauVatNuoIDaChet,
+  useDeleteVatNuoiLoNhap,
+  useUpdateLiveStockInBatchImport
+} from '@/queries/admin.query';
+import __helpers from '@/helpers';
 
 interface LivestockData {
   id: string;
@@ -59,38 +59,38 @@ const STATUS_MAP: Record<string, string> = {
   CHẾT: 'Chết'
 };
 
-const GENDER_MAP: Record<string, string> = {
-  ĐỰC: 'Đực',
-  CÁI: 'Cái'
-};
-
 export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
   const { toast } = useToast();
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDeadDialog, setShowDeadDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
-
-  // State for edit form
+  const { mutateAsync: deleteVatNuoi } = useDeleteVatNuoiLoNhap();
+  const { mutateAsync: danhDauVatNuoiDaChet } = useDanhDauVatNuoIDaChet();
+  const { mutateAsync: updateLiveStock } = useUpdateLiveStockInBatchImport();
   const [editData, setEditData] = useState({
     inspectionCode: data.inspectionCode,
     specieName: data.specieName,
+    specieId: data.specieId,
     status: data.status,
     gender: 'ĐỰC', // Default value, would need to be fetched from API
     color: 'Nâu', // Default value, would need to be fetched from API
     weight: data.weightImport,
-    dob: new Date() // Default value, would need to be fetched from API
+    dob: new Date(),
+    requestedBy: __helpers.getUserId() // Assuming you have a helper to get the user ID
   });
 
   const handleOpenEdit = () => {
     setEditData({
       inspectionCode: data.inspectionCode,
       specieName: data.specieName,
+      specieId: data.specieId,
       status: data.status,
       gender: 'ĐỰC', // Default value, would need to be fetched from API
       color: 'Nâu', // Default value, would need to be fetched from API
       weight: data.weightImport,
-      dob: new Date() // Default value, would need to be fetched from API
+      dob: new Date(),
+      requestedBy: __helpers.getUserId() // Assuming you have a helper to get the user ID
     });
     setShowEditDialog(true);
     setShowDetailsDialog(false);
@@ -105,8 +105,21 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
 
   const handleSaveEdit = async () => {
     try {
-      // API call would go here
-      // const response = await updateLivestock(data.id, editData)
+      const model = {
+        id: data.id,
+        item: editData
+      };
+
+      const [err] = await updateLiveStock(model);
+
+      if (err) {
+        toast({
+          title: 'Lỗi',
+          description: 'Không thể cập nhật thông tin. Vui lòng thử lại',
+          variant: 'destructive'
+        });
+        return;
+      }
 
       toast({
         title: 'Thành công',
@@ -126,8 +139,16 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
   const handleDelete = async () => {
     try {
       // API call would go here
-      // const response = await deleteLivestock(data.id)
+      const [err] = await deleteVatNuoi(data.id as any);
 
+      if (err) {
+        toast({
+          title: 'Lỗi',
+          description: 'Không thể xóa vật nuôi. Vui lòng thử lại',
+          variant: 'destructive'
+        });
+        return;
+      }
       toast({
         title: 'Thành công',
         description: 'Đã xóa vật nuôi',
@@ -145,8 +166,15 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
 
   const handleMarkAsDead = async () => {
     try {
-      // API call would go here
-      // const response = await markLivestockAsDead(data.id)
+      const [err] = await danhDauVatNuoiDaChet(data.id as any);
+      if (err) {
+        toast({
+          title: 'Lỗi',
+          description: 'Không thể đánh dấu vật nuôi đã chết. Vui lòng thử lại',
+          variant: 'destructive'
+        });
+        return;
+      }
 
       toast({
         title: 'Thành công',
@@ -208,24 +236,6 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
               </div>
 
               <div>
-                <p className="text-gray-500">Giới tính:</p>
-                <p className="font-medium">Đực</p>{' '}
-                {/* Would need to be fetched from API */}
-              </div>
-
-              <div>
-                <p className="text-gray-500">Màu lông:</p>
-                <p className="font-medium">Nâu</p>{' '}
-                {/* Would need to be fetched from API */}
-              </div>
-
-              <div>
-                <p className="text-gray-500">Trạng thái nhập:</p>
-                <p className="font-medium">Chờ Nhập</p>{' '}
-                {/* Would need to be fetched from API */}
-              </div>
-
-              <div>
                 <p className="text-gray-500">Cân nặng:</p>
                 <p className="font-medium">{data.weightImport} (Kg)</p>
               </div>
@@ -233,12 +243,6 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
               <div>
                 <p className="text-gray-500">Ngày chọn:</p>
                 <p className="font-medium">{formatDate(data.createdAt)}</p>
-              </div>
-
-              <div>
-                <p className="text-gray-500">Ngày sinh:</p>
-                <p className="font-medium">07/07/2024</p>{' '}
-                {/* Would need to be fetched from API */}
               </div>
 
               <div>
@@ -329,14 +333,7 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
               <Label htmlFor="inspectionCode" className="text-right">
                 Mã kiểm định
               </Label>
-              <Input
-                id="inspectionCode"
-                value={editData.inspectionCode}
-                onChange={(e) =>
-                  handleEditChange('inspectionCode', e.target.value)
-                }
-                className="col-span-3"
-              />
+              <p>{data.inspectionCode}</p>
             </div>
 
             {/* Loài vật */}
@@ -344,12 +341,9 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
               <Label htmlFor="specieName" className="text-right">
                 Loài vật
               </Label>
-              <Input
-                id="specieName"
-                value={editData.specieName}
-                readOnly
-                className="col-span-3 bg-gray-100"
-              />
+              <p>
+                {data.specieName} ({data.specieType})
+              </p>
             </div>
 
             {/* Trạng thái */}
@@ -357,44 +351,10 @@ export const CellAction: React.FC<UserCellActionProps> = ({ data }) => {
               <Label htmlFor="status" className="text-right">
                 Trạng thái
               </Label>
-              <Select
-                value={editData.status}
-                onValueChange={(value) => handleEditChange('status', value)}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Chọn trạng thái" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(STATUS_MAP).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p>{data.status}</p>
             </div>
 
             {/* Giới tính */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="gender" className="text-right">
-                Giới tính
-              </Label>
-              <Select
-                value={editData.gender}
-                onValueChange={(value) => handleEditChange('gender', value)}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Chọn giới tính" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(GENDER_MAP).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Màu sắc */}
             <div className="grid grid-cols-4 items-center gap-4">

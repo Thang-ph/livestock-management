@@ -63,6 +63,7 @@ export const columns: ColumnDef<any>[] = [
 
   {
     id: 'actions',
+    header: 'Hành động',
     cell: ({ row }) => <CellAction data={row.original} />
   }
 ];

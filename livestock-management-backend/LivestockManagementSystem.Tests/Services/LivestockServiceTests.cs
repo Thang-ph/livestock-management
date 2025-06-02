@@ -616,27 +616,7 @@ namespace LivestockManagementSystem.Tests.Services
             result.Items.Should().HaveCount(2);
         }
 
-        [Theory]
-        [InlineData(0, 1)]
-        [InlineData(0, 10)]
-        public async Task GetListLivestocks_WithDifferentPagination_ShouldReturnCorrectResults(int skip, int take)
-        {
-            // Arrange
-            var filter = new ListLivestocksFilter
-            {
-                Skip = skip,
-                Take = take
-            };
-
-            // Act
-            var result = await _livestockService.GetListLivestocks(filter);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Total.Should().BeGreaterThan(0); // At least some livestock with inspection codes
-            result.Items.Should().NotBeNull();
-            result.Items.Should().HaveCountLessOrEqualTo(take);
-        }
+       
 
         [Fact]
         public async Task GetLivestockGeneralInfo_LivestockWithAllFields_ShouldReturnCompleteInfo()

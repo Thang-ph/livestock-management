@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using static BusinessObjects.Constants.LmsConstants;
 using Swashbuckle.AspNetCore.Annotations;
 using Microsoft.AspNetCore.Http.HttpResults;
+using static BusinessObjects.Dtos.BatchExportDTO;
 
 namespace LivestockManagementSystemAPI.Controllers
 {
@@ -242,7 +243,7 @@ namespace LivestockManagementSystemAPI.Controllers
         [HttpPost("add-livestock-to-batch-export-detail")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<BatchExportDetail>> AddLivestockToBatchExportDetail( [FromBody] BatchExportDetailAddDTO batchExportDetailAdd)
+        public async Task<ActionResult<bool>> AddLivestockToBatchExportDetail( [FromBody] BatchExportDetailAddDTO batchExportDetailAdd)
         {
             try
             {
@@ -260,6 +261,30 @@ namespace LivestockManagementSystemAPI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError($"[{this.GetType().Name}]/{nameof(AddLivestockToBatchExportDetail)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+        [HttpPost("add-livestock-to-batch-export-detail-by-inspection-code")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> AddLivestockToBatchExportDetailByInspectionCode([FromBody] BatchExportDetailAddDTOByInspectionCode batchExportDetailAddDTOByInspectionCode)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    var errors = string.Join(" | ", ModelState.Values
+                        .SelectMany(v => v.Errors)
+                        .Select(e => e.ErrorMessage));
+                    _logger.LogWarning($"[{this.GetType().Name}]/{nameof(AddLivestockToBatchExportDetailByInspectionCode)} : ModelState Errors: {errors}");
+                    return GetError("ModelState not Valid");
+                }
+                var result = await _batchExportRepository.AddLivestockToBatchExportDetailByInspectionCode(batchExportDetailAddDTOByInspectionCode);
+                return SaveSuccess(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(AddLivestockToBatchExportDetailByInspectionCode)} " + ex.Message);
                 return GetError(ex.Message);
             }
         }
@@ -292,19 +317,35 @@ namespace LivestockManagementSystemAPI.Controllers
         /// Body la user ID update
         /// </summary>
 
-        [HttpPut("confirm-handover-batch-export-detail/{batchExportDetailId}")]
+        [HttpPut("confirm-handover-batch-export-detail")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<bool>> ConfirmHandoverBatchExportDetail([FromRoute] string batchExportDetailId,[FromBody] string UpdatedBy)
+        public async Task<ActionResult<bool>> ConfirmHandoverBatchExportDetail([FromBody] BatchExportHandover batchExportHandover)
         {
             try
             {
-                var result = await _batchExportRepository.ConfirmHandoverBatchExportDetail(batchExportDetailId, UpdatedBy);
+                var result = await _batchExportRepository.ConfirmHandoverBatchExportDetail(batchExportHandover.livestockId, batchExportHandover.UpdatedBy);
                 return SaveSuccess(result);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"[{this.GetType().Name}]/{nameof(ConfirmHandoverBatchExportDetail)} " + ex.Message);
+                return GetError(ex.Message);
+            }
+        }
+        [HttpPut("confirm-handover-batch-export-detail-by-inspection-code")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<bool>> ConfirmHandoverBatchExportDetailByInspectionCode([FromBody] BatchExportHandoverByInspection batchExportHandoverByInspection)
+        {
+            try
+            {
+                var result = await _batchExportRepository.ConfirmHandoverBatchExportDetailByInspectionCode(batchExportHandoverByInspection.inspectionCode, batchExportHandoverByInspection.specieType, batchExportHandoverByInspection.UpdatedBy);
+                return SaveSuccess(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[{this.GetType().Name}]/{nameof(ConfirmHandoverBatchExportDetailByInspectionCode)} " + ex.Message);
                 return GetError(ex.Message);
             }
         }

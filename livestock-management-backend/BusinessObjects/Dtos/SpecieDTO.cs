@@ -1,4 +1,5 @@
 ﻿using BusinessObjects.Attribute;
+using BusinessObjects.ConfigModels;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -32,6 +33,11 @@ namespace BusinessObjects.Dtos
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public specie_type Type { get; set; }
     }
+
+    public class ListSpecies : ResponseListModel<SpecieDTO>
+    {
+    }
+
     public class SpecieCreate
     {
         [Required(ErrorMessage = "Tên không được để trống")]

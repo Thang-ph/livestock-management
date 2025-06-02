@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useGetSpecieType } from '@/queries/admin.query';
-import { usseCreateSpecie } from '@/queries/vatnuoi.query';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -35,66 +33,74 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 import __helpers from '@/helpers';
+import { useCreateBenh, useGetListLoaiBenhType } from '@/queries/benh.query';
 
 // Define the form schema with validation
 const formSchema = z.object({
-  name: z.string().min(1, { message: 'Tên không được để trống' }),
-  description: z.string().min(1, { message: 'Mô tả không được để trống' }),
-  growthRate: z.coerce
-    .number()
-    .min(0, { message: 'Tỉ lệ tăng trưởng phải lớn hơn hoặc bằng 0' }),
-  dressingPercentage: z.coerce
-    .number()
-    .min(0, { message: 'Tỉ lệ mặc định phải lớn hơn hoặc bằng 0' }),
-  type: z.string().min(1, { message: 'Loại không được để trống' }),
-  requestedBy: z
+  name: z
     .string()
-    .min(1, { message: 'Người yêu cầu không được để trống' })
+    .min(1, 'Tên bệnh là bắt buộc')
+    .max(255, 'Tên bệnh không được quá 255 ký tự'),
+  symptom: z.string().min(1, 'Triệu chứng là bắt buộc'),
+  description: z.string().min(1, 'Mô tả là bắt buộc'),
+  type: z.string().min(1, 'Loại bệnh là bắt buộc'),
+  defaultInsuranceDuration: z
+    .number()
+    .min(0, 'Thời gian bảo hiểm mặc định phải là số không âm')
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof formSchema>;
 
 export default function AddForm() {
-  const { data: specieTypes = [] } = useGetSpecieType();
-  const { mutateAsync: createSpecie } = usseCreateSpecie();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { mutateAsync: createBenh } = useCreateBenh();
+  const { data: listLoaiBenh } = useGetListLoaiBenhType();
+  console.log('List Loai Benh:', listLoaiBenh);
+
   // Initialize the form
-  const form = useForm<FormValues>({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      symptom: '',
       description: '',
-      growthRate: 0,
-      dressingPercentage: 0,
       type: '',
-      requestedBy: __helpers.getUserEmail()
+      defaultInsuranceDuration: 0
     }
   });
 
-  // Handle form submission
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = async (data: FormData) => {
     try {
       setIsSubmitting(true);
-      const [err] = await createSpecie(values);
+      // Add requestedBy from helper function
+      const payload = {
+        ...data,
+        requestedBy: __helpers.getUserEmail()
+      };
+      const [err] = await createBenh(payload);
+
       if (err) {
         toast({
-          title: 'Thêm thất bại',
-          description: 'Đã xảy ra lỗi khi thêm vật nuôi. Vui lòng thử lại.',
+          title: 'Lỗi',
+          description: 'Có lỗi xảy ra khi tạo bệnh mới',
           variant: 'destructive'
         });
         return;
       }
+
       toast({
-        title: 'Thêm thành công',
-        description: `Đã thêm ${values.name} vào danh sách vật nuôi.`,
+        title: 'Thành công',
+        description: 'Đã tạo bệnh mới thành công',
         variant: 'success'
       });
+
+      // Reset form after successful submission
       form.reset();
     } catch (error) {
-      console.error('Error creating specie:', error);
+      console.error('Error creating benh:', error);
       toast({
-        title: 'Thêm thất bại',
-        description: 'Đã xảy ra lỗi khi thêm vật nuôi. Vui lòng thử lại.',
+        title: 'Lỗi',
+        description: 'Có lỗi xảy ra khi tạo bệnh mới',
         variant: 'destructive'
       });
     } finally {
@@ -103,124 +109,159 @@ export default function AddForm() {
   };
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Thêm vật nuôi mới</CardTitle>
-        <CardDescription>
-          Điền thông tin để thêm một loài vật nuôi mới vào hệ thống.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+    <div className="container mx-auto py-6">
+      <Card className="mx-auto max-w-2xl">
+        <CardHeader>
+          <CardTitle>Thêm Bệnh Mới</CardTitle>
+          <CardDescription>
+            Điền thông tin để tạo một loại bệnh mới trong hệ thống
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Name Field */}
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tên</FormLabel>
+                    <FormLabel>Tên Bệnh *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nhập tên vật nuôi" {...field} />
+                      <Input placeholder="Nhập tên bệnh" {...field} />
                     </FormControl>
+                    <FormDescription>
+                      Tên của loại bệnh (tối đa 255 ký tự)
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              {/* Symptom Field */}
+              <FormField
+                control={form.control}
+                name="symptom"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Triệu Chứng *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Mô tả các triệu chứng của bệnh"
+                        className="min-h-[100px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Mô tả chi tiết các triệu chứng đặc trưng của bệnh
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Description Field */}
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mô Tả *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Mô tả chi tiết về bệnh"
+                        className="min-h-[120px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Thông tin chi tiết về bệnh, nguyên nhân, cách điều trị,
+                      v.v.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Type Field */}
               <FormField
                 control={form.control}
                 name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Loại</FormLabel>
+                    <FormLabel>Loại Bệnh *</FormLabel>
                     <Select
                       onValueChange={field.onChange}
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Chọn loại vật nuôi" />
+                          <SelectValue placeholder="Chọn loại bệnh" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {specieTypes.map((type) => {
-                          console.log('type', type);
-                          return (
-                            <SelectItem key={type} value={type}>
-                              {type.charAt(0) + type.slice(1).toLowerCase()}
-                            </SelectItem>
-                          );
-                        })}
+                        {listLoaiBenh?.map((loaiBenh) => (
+                          <SelectItem key={loaiBenh} value={loaiBenh}>
+                            {loaiBenh.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    <FormDescription>
+                      Phân loại bệnh theo mức độ nghiêm trọng hoặc tính chất
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              {/* Default Insurance Duration Field */}
               <FormField
                 control={form.control}
-                name="growthRate"
+                name="defaultInsuranceDuration"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tỉ lệ tăng trưởng</FormLabel>
+                    <FormLabel>Thời Gian Bảo Hiểm Mặc Định (ngày) *</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" {...field} />
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Nhập số ngày"
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value, 10) || 0)
+                        }
+                      />
                     </FormControl>
-                    <FormDescription>Đơn vị: %</FormDescription>
+                    <FormDescription>
+                      Số ngày bảo hiểm mặc định cho loại bệnh này
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="dressingPercentage"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tỉ lệ mặc định</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" {...field} />
-                    </FormControl>
-                    <FormDescription>Đơn vị: %</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mô tả</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Nhập mô tả về vật nuôi"
-                      className="min-h-[120px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang xử lý...
-                </>
-              ) : (
-                'Thêm vật nuôi'
-              )}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+              {/* Submit Button */}
+              <div className="flex justify-end space-x-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => form.reset()}
+                  disabled={isSubmitting}
+                >
+                  Đặt Lại
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {isSubmitting ? 'Đang Tạo...' : 'Tạo Bệnh'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

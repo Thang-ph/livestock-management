@@ -337,6 +337,7 @@ namespace BusinessObjects.Dtos
         public string RequestedBy { get; set; }
         public string? Color { get; set; }
         public decimal? Weight { get; set; }
+        public decimal? WeightOrigin { get; set; }
         public string? Origin { get; set; }
     }
 
@@ -401,5 +402,26 @@ namespace BusinessObjects.Dtos
         public IEnumerable<string>? MedicineIds { get; set; }
 
         public string RequestedBy { get; set; }
+    }
+
+    public class CreateEmptyRecordRequest
+    {
+        public string RequestedBy { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    public class DiseaseBySpecie
+    {
+        public string SpecieId { get; set; }
+        public string SpecieName { get; set; }
+        public IEnumerable<DiseaseQuantity> DiseaseQuantities { get; set; } 
+    }
+
+    public class DiseaseQuantity
+    {
+        public string DiseaseId { get; set; }
+        public string DiseaseName { get; set; }
+        public int Quantity { get; set; }
+        public decimal Ratio { get; set; }
     }
 }

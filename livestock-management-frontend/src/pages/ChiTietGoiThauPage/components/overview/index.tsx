@@ -6,22 +6,42 @@ import { DataTableSkeleton } from '@/components/shared/data-table-skeleton';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Download, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { toast } from '@/components/ui/use-toast';
-import { useGetDanhSachKhachHangGoiThau } from '@/queries/admin.query';
+import {
+  useGetDanhSachKhachHangGoiThau,
+  useGetTemplateKhachHang
+} from '@/queries/admin.query';
+import __helpers from '@/helpers';
+import axios from 'axios';
 
 export function OverViewTab() {
   const [searchParams] = useSearchParams();
   const { id } = useParams();
+
+  // Lấy thông tin phân trang từ URL params
+  const currentPage = Number(searchParams.get('page') || 1);
   const pageLimit = Number(searchParams.get('limit') || 10);
+
   const { data, isPending, refetch } = useGetDanhSachKhachHangGoiThau(
     String(id)
   );
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const listObjects = data?.data?.items;
-  const totalRecords = data?.data?.length;
+  const { mutateAsync: getTempalteKhachHang } = useGetTemplateKhachHang();
+
+  // Tất cả dữ liệu từ API
+  const allListObjects = data?.data?.items || [];
+  const totalRecords = allListObjects.length;
   const pageCount = Math.ceil(totalRecords / pageLimit);
+
+  // Phân trang dữ liệu ở client-side
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageLimit;
+    const endIndex = startIndex + pageLimit;
+    return allListObjects.slice(startIndex, endIndex);
+  }, [allListObjects, currentPage, pageLimit]);
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -34,8 +54,18 @@ export function OverViewTab() {
 
       const formData = new FormData();
       formData.append('procurementId', String(id));
-      formData.append('requestedBy', 'test');
+      formData.append('requestedBy', __helpers.getUserId());
       formData.append('file', file);
+
+      await axios.post(
+        '/api/procurement-management/import-list-customer',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
 
       toast({
         title: 'Tải lên thành công',
@@ -52,7 +82,6 @@ export function OverViewTab() {
       });
     } finally {
       setUploading(false);
-      // Reset the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -61,16 +90,24 @@ export function OverViewTab() {
 
   const handleDownloadTemplate = async () => {
     try {
-      // Gọi GET API download
+      const [err, data] = await getTempalteKhachHang(id as any);
+      if (err) {
+        toast({
+          title: 'Lỗi tải xuống',
+          description: err.data?.data || 'Không thể tải file mẫu',
+          variant: 'destructive'
+        });
+        return;
+      }
 
+      console.log('Download link:', data);
+      const downloadLink = data.data;
       const link = document.createElement('a');
-      link.href =
-        'https://res.cloudinary.com/livestock-management-cloudinary/raw/upload/v1744376733/1744217286956-Mẫudanhsáchkháchhàng04032025.xlsx';
-      link.setAttribute('download', 'customer-template.xlsx');
+      link.href = downloadLink;
+      link.target = '_blank';
+      link.setAttribute('download', 'template_khach_hang.xlsx');
       document.body.appendChild(link);
-
       link.click();
-
       document.body.removeChild(link);
 
       toast({
@@ -90,8 +127,9 @@ export function OverViewTab() {
 
   return (
     <>
-      <div className="grid gap-6 rounded-md p-4 pt-0 ">
+      <div className="grid gap-6 rounded-md p-4 pt-0">
         <h1 className="text-center font-bold">DANH SÁCH KHÁCH HÀNG</h1>
+
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -102,7 +140,6 @@ export function OverViewTab() {
             <span>Tải file mẫu</span>
           </Button>
 
-          {/* Hidden file input */}
           <input
             type="file"
             ref={fileInputRef}
@@ -121,24 +158,23 @@ export function OverViewTab() {
             <span>{uploading ? 'Đang tải lên...' : 'Tải file lên'}</span>
           </Button>
         </div>
-        {listObjects && listObjects.length > 0 ? (
+
+        {isPending ? (
+          <div className="p-5">
+            <DataTableSkeleton
+              columnCount={10}
+              filterableColumnCount={2}
+              searchableColumnCount={1}
+            />
+          </div>
+        ) : allListObjects && allListObjects.length > 0 ? (
           <div>
-            {isPending ? (
-              <div className="p-5">
-                <DataTableSkeleton
-                  columnCount={10}
-                  filterableColumnCount={2}
-                  searchableColumnCount={1}
-                />
-              </div>
-            ) : (
-              <ListData
-                data={listObjects}
-                page={pageLimit}
-                totalUsers={totalRecords}
-                pageCount={pageCount}
-              />
-            )}
+            <ListData
+              data={paginatedData}
+              page={currentPage}
+              totalUsers={totalRecords}
+              pageCount={pageCount}
+            />
           </div>
         ) : (
           <div className="text-center text-red-500">

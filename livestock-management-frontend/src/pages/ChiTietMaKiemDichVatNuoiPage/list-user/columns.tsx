@@ -3,8 +3,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
-import { LockIcon, UnlockIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import __helpers from '@/helpers';
 import { CellAction } from './cell-action';
 import { InspectionCodeRangeStatus } from '@/constants/data';

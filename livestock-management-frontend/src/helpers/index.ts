@@ -23,6 +23,15 @@ class helpers {
   convertToDate(isoString) {
     const date = new Date(isoString);
 
+    // Check if the date is exactly 01-01-1970 (Unix epoch start)
+    if (
+      date.getDate() === 1 &&
+      date.getMonth() === 0 &&
+      date.getFullYear() === 1970
+    ) {
+      return 'N/A';
+    }
+
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
@@ -36,6 +45,13 @@ class helpers {
 
   convertToDateDDMMYYYY(isoString) {
     const date = new Date(isoString);
+    if (
+      date.getDate() === 1 &&
+      date.getMonth() === 0 &&
+      date.getFullYear() === 1970
+    ) {
+      return 'N/A';
+    }
 
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -84,8 +100,13 @@ class helpers {
     const token = this.cookie_get('AT');
     if (!token) return '';
     const userDetail = this.decodeToken(token);
-    console.log('userDetail', userDetail.Role);
-    return userDetail.Role;
+    return userDetail.PrimaryRole;
+  }
+  getUserId() {
+    const token = this.cookie_get('AT');
+    if (!token) return '';
+    const userDetail = this.decodeToken(token);
+    return userDetail.UserId;
   }
 
   isAdminRole() {
