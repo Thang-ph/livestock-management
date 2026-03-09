@@ -26,19 +26,19 @@ Key objectives of the system:
 - Maintain livestock health records
 - Track disease reports and treatment history
 - Monitor livestock status over time
-<img width="670" height="329" alt="image" src="https://github.com/user-attachments/assets/48a430b7-4dbd-47f5-873a-04bd6ed41d9f" />
+
 
 ### Vaccination Management
 - Schedule vaccination campaigns
 - Track vaccination progress across livestock groups
 - Identify livestock that do not meet vaccination requirements
-<img width="670" height="322" alt="image" src="https://github.com/user-attachments/assets/9143fca2-2950-44de-8765-52bc3bbe4da0" />
+
 
 ### Operational Dashboard
 - Visual overview of vaccination progress
 - Health statistics and operational metrics
 - Real-time monitoring of livestock status
-<img width="668" height="341" alt="image" src="https://github.com/user-attachments/assets/1f83733e-71c3-45d4-a91d-2f429a0c0af6" />
+
 
 ### Task & Field Operation Management
 - Manage livestock groups and farming activities
@@ -49,13 +49,16 @@ Key objectives of the system:
 ## System Screenshots
 
 ### Vaccination Progress Dashboard
-![Vaccination Dashboard](./docs/dashboard.png)
+<img width="670" height="322" alt="image" src="https://github.com/user-attachments/assets/c4caa49b-7bee-41a0-a8ed-fa1e8d5f6db7" />
+
 
 ### Vaccination Management List
-![Vaccination List](./docs/vaccination-list.png)
+<img width="668" height="341" alt="image" src="https://github.com/user-attachments/assets/c643e4ea-6127-47a0-af05-df154cb48fc8" />
+
 
 ### Vaccination Requirement Monitoring
-![Vaccination Monitoring](./docs/vaccination-monitor.png)
+<img width="670" height="329" alt="image" src="https://github.com/user-attachments/assets/6707d9c0-d893-4af1-b75a-e1d0d19ece8d" />
+
 
 ---
 
